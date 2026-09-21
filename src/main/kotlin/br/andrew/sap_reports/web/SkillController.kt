@@ -46,11 +46,19 @@ class SkillController(
     }
 
     /**
-     * Palpite a partir da requisicao, para o download funcionar sem configuracao
-     * em desenvolvimento. Atras de proxy isso devolve o host interno - por isso
-     * `reports.public-url` existe e deve ser preenchida em producao.
+     * Endereco publico deduzido da requisicao - dispensa configurar
+     * `reports.public-url`, que fica so como sobrescrita.
+     *
+     * Atras do Traefik isso depende de `server.forward-headers-strategy: framework`:
+     * o filtro do Spring aplica X-Forwarded-Proto/Host/Port e, principalmente, o
+     * X-Forwarded-Prefix que o stripprefix envia. Sem o prefixo o endereco sairia
+     * sem o /reports e o GPT chamaria o sap-service.
+     *
+     * Porta 80/443 e omitida mesmo quando nao bate com o esquema: atras de TLS
+     * terminado antes do Traefik chega "https" com a porta 80 do entrypoint.
      */
-    private fun urlDaRequisicao(request: HttpServletRequest): String =
+    internal fun urlDaRequisicao(request: HttpServletRequest): String =
         "${request.scheme}://${request.serverName}" +
-            if (request.serverPort in listOf(80, 443)) "" else ":${request.serverPort}"
+            (if (request.serverPort in listOf(80, 443)) "" else ":${request.serverPort}") +
+            request.contextPath.trimEnd('/')
 }

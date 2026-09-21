@@ -13,7 +13,6 @@ WORKDIR /workspace/app
 COPY gradlew ./
 COPY gradle ./gradle
 COPY build.gradle.kts settings.gradle.kts ./
-COPY application.yaml.example ./
 RUN chmod +x ./gradlew && ./gradlew dependencies --no-daemon > /dev/null 2>&1 || true
 
 COPY src ./src

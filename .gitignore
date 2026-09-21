@@ -1,0 +1,82 @@
+# ============================================================
+# CREDENCIAIS - nada aqui pode entrar no repositorio
+# ============================================================
+# Configuracao local com senha/host reais. O application.yaml
+# versionado usa apenas placeholders de variavel de ambiente.
+# Mesmo criterio do sap-rovema (que ignora application-*.properties):
+# o application.yaml/properties versionado so tem placeholders; todo
+# arquivo de perfil com valor real fica fora do repositorio.
+application-*.yaml
+application-*.yml
+application-*.properties
+src/main/**/application.properties
+src/main/**/application-*.yaml
+src/main/**/application-*.yml
+version.properties
+
+src/main/resources/application.yaml
+application-local.yaml
+application-local.yml
+application-*-local.yaml
+
+# ... mas o MODELO sem segredo continua versionado:
+!application-*.yaml.example
+!application-*.yml.example
+!application-*.properties.example
+
+# Variaveis de ambiente
+.env
+.env.*
+!.env.example
+
+# Chaves e certificados
+*.pem
+*.key
+*.p12
+*.jks
+*.keystore
+*.truststore
+secrets/
+
+# ============================================================
+# Gradle / build
+# ============================================================
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+.kotlin/
+out/
+bin/
+
+# ============================================================
+# IntelliJ IDEA
+# ============================================================
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/usage.statistics.xml
+.idea/shelf/
+.idea/dataSources/
+.idea/dataSources.local.xml
+.idea/httpRequests/
+*.iml
+*.ipr
+*.iws
+
+# VS Code / Eclipse
+.vscode/
+.settings/
+.classpath
+.project
+
+# ============================================================
+# Sistema operacional
+# ============================================================
+.DS_Store
+Thumbs.db
+*~
+*.swp
+
+# Logs
+*.log
+logs/

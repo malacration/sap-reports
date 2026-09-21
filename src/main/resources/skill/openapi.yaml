@@ -1,0 +1,796 @@
+openapi: 3.0.3
+
+# ============================================================================
+# CONTRATO CONGELADO - sap-reports
+#
+# Este arquivo e a fonte da verdade compartilhada entre duas frentes paralelas:
+#   - backend  (sap-reports, Kotlin/Spring Boot)
+#   - frontend (front-sap, modulo Angular "relatorio")
+#
+# Mudanca aqui exige avisar os dois lados. Nao alterar sem sincronizar.
+# ============================================================================
+
+info:
+  title: sap-reports
+  version: 1.0.0
+  description: |
+    Servico de relatorios. Executa consultas atraves do `sap-odbc` (gateway SQL
+    somente-leitura no SAP HANA) e renderiza o resultado em PDF, HTML ou CSV a
+    partir de templates Handlebars enviados em runtime.
+
+    ## Autenticacao
+    Todas as rotas exigem o JWT emitido pelo `sap-rovema`, enviado no header
+    `Authorization` **sem o prefixo `Bearer`** (o `jwt.interceptor.ts` do
+    front-sap ja faz isso). Token ausente ou invalido devolve 401.
+
+    ## Autorizacao
+    - `/api/v1/relatorios/**`       - qualquer papel que conste em `papeis[]` do relatorio
+    - `/api/v1/admin/relatorios/**` - somente o papel `admin`
+
+    ## Ciclo de vida
+    Um relatorio e criado como RASCUNHO, pode ser pre-visualizado quantas vezes
+    for preciso, e so aparece para os consumidores depois de publicado. Cada
+    upload gera uma VERSAO imutavel; publicar move o ponteiro `versaoPublicada`.
+    Rollback aponta o ponteiro para uma versao anterior - nada e sobrescrito.
+
+servers:
+  - url: http://localhost:8081
+    description: Local
+  - url: /api/sap-reports
+    description: Atras do gateway
+
+security:
+  - jwtSemBearer: []
+
+tags:
+  - name: Consumo
+    description: Listar e executar relatorios publicados
+  - name: Autoria
+    description: Enviar, validar, pre-visualizar e publicar (somente admin)
+
+paths:
+
+  # ==========================================================================
+  # CONSUMO
+  # ==========================================================================
+
+  /api/v1/relatorios:
+    get:
+      tags: [Consumo]
+      summary: Lista os relatorios publicados visiveis ao usuario
+      description: |
+        Retorna apenas relatorios PUBLICADOS cujo `papeis[]` tenha intersecao
+        com os papeis do token. Relatorio sem intersecao nao aparece na lista -
+        nao e um 403, ele simplesmente nao existe para aquele usuario.
+      responses:
+        '200':
+          description: Lista (possivelmente vazia)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/RelatorioResumo' }
+              example:
+                - id: 12
+                  nome: Vendas por cliente
+                  descricao: Total faturado por cliente no periodo
+                  formatos: [pdf, html, csv]
+                  versaoPublicada: 3
+                  atualizadoEm: '2026-09-10T14:22:03'
+        '401': { $ref: '#/components/responses/NaoAutorizado' }
+
+  /api/v1/relatorios/{id}:
+    get:
+      tags: [Consumo]
+      summary: Metadados e especificacao de parametros
+      description: |
+        O front usa `parametros[]` para montar o formulario dinamicamente.
+        Cada parametro traz `tipo`, que determina o componente de entrada, e
+        `obrigatorio`, que determina a validacao.
+      parameters:
+        - $ref: '#/components/parameters/RelatorioId'
+      responses:
+        '200':
+          description: Metadados do relatorio publicado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RelatorioDetalhe' }
+              example:
+                id: 12
+                nome: Vendas por cliente
+                descricao: Total faturado por cliente no periodo
+                formatos: [pdf, html, csv]
+                versaoPublicada: 3
+                parametros:
+                  - nome: dataInicio
+                    tipo: date
+                    rotulo: Data inicial
+                    obrigatorio: true
+                  - nome: dataFim
+                    tipo: date
+                    rotulo: Data final
+                    obrigatorio: true
+                colunas:
+                  - campo: CardCode
+                    titulo: Codigo
+                    tipo: texto
+                  - campo: TOTAL
+                    titulo: Total
+                    tipo: moeda
+        '401': { $ref: '#/components/responses/NaoAutorizado' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+
+  /api/v1/relatorios/{id}/render:
+    post:
+      tags: [Consumo]
+      summary: Gera o relatorio no formato pedido
+      description: |
+        Executa a consulta no `sap-odbc` e renderiza.
+
+        **PDF e CSV** voltam como binario/texto para download - use
+        `Content-Disposition` para o nome do arquivo.
+
+        **HTML** volta como documento completo e DEVE ser exibido dentro de
+        `<iframe sandbox>`. O conteudo e sanitizado no upload, mas o sandbox e a
+        segunda barreira - nao injetar via `innerHTML`.
+
+        Se a consulta exceder o teto de linhas, a resposta e 422 (nao um PDF
+        parcial): relatorio truncado em silencio seria pior que erro.
+      parameters:
+        - $ref: '#/components/parameters/RelatorioId'
+        - name: formato
+          in: query
+          required: true
+          schema: { type: string, enum: [pdf, html, csv] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RenderRequest' }
+            example:
+              params:
+                dataInicio: '2026-01-01'
+                dataFim: '2026-01-31'
+      responses:
+        '200':
+          description: Relatorio gerado
+          headers:
+            Content-Disposition:
+              description: 'Ex.: attachment; filename="vendas-por-cliente-20260914.pdf"'
+              schema: { type: string }
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+            text/html:
+              schema: { type: string }
+            text/csv:
+              schema: { type: string }
+        '400':
+          description: Parametro ausente, sobrando ou de tipo invalido
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Erro' }
+              example:
+                erro: parametros_invalidos
+                mensagem: 'Parametros ausentes: dataFim.'
+        '401': { $ref: '#/components/responses/NaoAutorizado' }
+        '403': { $ref: '#/components/responses/Proibido' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+        '422':
+          description: |
+            Resultado excede o limite de linhas. O front deve orientar o usuario
+            a restringir o periodo/filtros, nao oferecer "baixar assim mesmo".
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Erro' }
+              example:
+                erro: resultado_truncado
+                mensagem: 'A consulta retornou mais de 5000 linhas. Restrinja o periodo.'
+        '504':
+          description: A consulta excedeu o tempo limite
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Erro' }
+
+  # ==========================================================================
+  # AUTORIA (somente admin)
+  # ==========================================================================
+
+  /api/v1/admin/relatorios:
+    get:
+      tags: [Autoria]
+      summary: Lista todos os relatorios, inclusive rascunhos
+      responses:
+        '200':
+          description: Lista completa
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/RelatorioAdmin' }
+        '401': { $ref: '#/components/responses/NaoAutorizado' }
+        '403': { $ref: '#/components/responses/Proibido' }
+
+    post:
+      tags: [Autoria]
+      summary: Envia um relatorio novo (cria rascunho na versao 1)
+      description: |
+        Recebe o par `definicao` (YAML) + `template` (Handlebars) e valida antes
+        de gravar. **Se a validacao falhar, nada e persistido** e a resposta 422
+        traz TODOS os problemas encontrados, cada um com o caminho no YAML - o
+        autor (pessoa ou IA) corrige tudo de uma vez em vez de descobrir um erro
+        por tentativa.
+
+        Nunca publica direto: o resultado e sempre RASCUNHO.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/UploadRequest' }
+          application/json:
+            schema: { $ref: '#/components/schemas/UploadRequest' }
+      responses:
+        '201':
+          description: Rascunho criado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RelatorioAdmin' }
+        '401': { $ref: '#/components/responses/NaoAutorizado' }
+        '403': { $ref: '#/components/responses/Proibido' }
+        '422': { $ref: '#/components/responses/ValidacaoFalhou' }
+
+  /api/v1/admin/relatorios/{id}:
+    get:
+      tags: [Autoria]
+      summary: Detalhe administrativo, com a fonte da versao pedida
+      parameters:
+        - $ref: '#/components/parameters/RelatorioId'
+        - name: versao
+          in: query
+          description: Se omitido, devolve a ultima versao (rascunho mais recente)
+          schema: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: Detalhe com `definicao` e `template` em texto
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RelatorioAdminDetalhe' }
+        '401': { $ref: '#/components/responses/NaoAutorizado' }
+        '403': { $ref: '#/components/responses/Proibido' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+
+    put:
+      tags: [Autoria]
+      summary: Envia nova versao de um relatorio existente
+      description: |
+        Cria uma VERSAO nova (rascunho). A versao publicada continua servindo os
+        consumidores ate alguem publicar esta. Mesma validacao do POST.
+      parameters:
+        - $ref: '#/components/parameters/RelatorioId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/UploadRequest' }
+          application/json:
+            schema: { $ref: '#/components/schemas/UploadRequest' }
+      responses:
+        '200':
+          description: Nova versao criada como rascunho
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RelatorioAdmin' }
+        '401': { $ref: '#/components/responses/NaoAutorizado' }
+        '403': { $ref: '#/components/responses/Proibido' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+        '422': { $ref: '#/components/responses/ValidacaoFalhou' }
+
+    delete:
+      tags: [Autoria]
+      summary: Remove o relatorio e todas as suas versoes
+      parameters:
+        - $ref: '#/components/parameters/RelatorioId'
+      responses:
+        '204': { description: Removido }
+        '401': { $ref: '#/components/responses/NaoAutorizado' }
+        '403': { $ref: '#/components/responses/Proibido' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+
+  /api/v1/admin/relatorios/validar:
+    post:
+      tags: [Autoria]
+      summary: Valida sem gravar
+      description: |
+        Mesma validacao do upload, sem persistir nada. Serve para o editor dar
+        feedback enquanto o autor escreve, antes de criar rascunho.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UploadRequest' }
+      responses:
+        '200':
+          description: Valido
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ValidacaoOk' }
+              example:
+                valido: true
+                tabelas: ['SBOGRUPOROVEMA.OINV']
+                parametros: [dataInicio, dataFim]
+        '401': { $ref: '#/components/responses/NaoAutorizado' }
+        '403': { $ref: '#/components/responses/Proibido' }
+        '422': { $ref: '#/components/responses/ValidacaoFalhou' }
+
+  /api/v1/admin/relatorios/{id}/preview:
+    post:
+      tags: [Autoria]
+      summary: Renderiza uma versao sem publicar
+      description: |
+        Executa de verdade, com dados reais, mas sem tornar a versao visivel aos
+        consumidores. E o passo que substitui a revisao de PR: o autor ve o
+        resultado antes de liberar.
+      parameters:
+        - $ref: '#/components/parameters/RelatorioId'
+        - name: versao
+          in: query
+          description: Se omitido, usa a ultima versao
+          schema: { type: integer, minimum: 1 }
+        - name: formato
+          in: query
+          required: true
+          schema: { type: string, enum: [pdf, html, csv] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RenderRequest' }
+      responses:
+        '200':
+          description: Previa gerada
+          content:
+            application/pdf: { schema: { type: string, format: binary } }
+            text/html: { schema: { type: string } }
+            text/csv: { schema: { type: string } }
+        '400':
+          description: Parametros invalidos
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Erro' }
+        '401': { $ref: '#/components/responses/NaoAutorizado' }
+        '403': { $ref: '#/components/responses/Proibido' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+        '422':
+          description: Resultado truncado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Erro' }
+
+  /api/v1/admin/relatorios/{id}/publicar:
+    post:
+      tags: [Autoria]
+      summary: Publica uma versao
+      description: Move `versaoPublicada` para a versao indicada, tornando-a visivel aos consumidores.
+      parameters:
+        - $ref: '#/components/parameters/RelatorioId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [versao]
+              properties:
+                versao: { type: integer, minimum: 1 }
+            example: { versao: 4 }
+      responses:
+        '200':
+          description: Publicado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RelatorioAdmin' }
+        '401': { $ref: '#/components/responses/NaoAutorizado' }
+        '403': { $ref: '#/components/responses/Proibido' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+
+  /api/v1/admin/relatorios/{id}/versoes:
+    get:
+      tags: [Autoria]
+      summary: Historico de versoes
+      parameters:
+        - $ref: '#/components/parameters/RelatorioId'
+      responses:
+        '200':
+          description: Versoes, da mais recente para a mais antiga
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Versao' }
+              example:
+                - versao: 4
+                  criadoPor: andrew
+                  criadoEm: '2026-09-14T10:00:00'
+                  publicadoEm: null
+                  publicada: false
+                - versao: 3
+                  criadoPor: andrew
+                  criadoEm: '2026-09-10T14:20:00'
+                  publicadoEm: '2026-09-10T14:22:03'
+                  publicada: true
+        '401': { $ref: '#/components/responses/NaoAutorizado' }
+        '403': { $ref: '#/components/responses/Proibido' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+
+  /api/v1/admin/relatorios/{id}/rollback/{versao}:
+    post:
+      tags: [Autoria]
+      summary: Volta a versao publicada para uma anterior
+      description: Apenas move o ponteiro. Nenhuma versao e apagada ou sobrescrita.
+      parameters:
+        - $ref: '#/components/parameters/RelatorioId'
+        - name: versao
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: Ponteiro movido
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RelatorioAdmin' }
+        '401': { $ref: '#/components/responses/NaoAutorizado' }
+        '403': { $ref: '#/components/responses/Proibido' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+
+  /api/v1/admin/relatorios/{id}/auditoria:
+    get:
+      tags: [Autoria]
+      summary: Quem fez o que, e quando
+      parameters:
+        - $ref: '#/components/parameters/RelatorioId'
+      responses:
+        '200':
+          description: Eventos, do mais recente para o mais antigo
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/EventoAuditoria' }
+        '401': { $ref: '#/components/responses/NaoAutorizado' }
+        '403': { $ref: '#/components/responses/Proibido' }
+
+  /api/v1/admin/exemplos:
+    get:
+      tags: [Autoria]
+      summary: Exemplos prontos de relatorio (definicao + template)
+      description: |
+        Os mesmos exemplos da skill de IA, todos aprovados pelo validador. A tela de
+        autoria carrega um deles no editor como ponto de partida.
+      responses:
+        '200':
+          description: Exemplos, ordenados por nome
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [id, nome, definicao, template]
+                  properties:
+                    id: { type: string, example: vendas-agrupadas-por-vendedor, description: Nome base do arquivo do exemplo }
+                    nome: { type: string }
+                    descricao: { type: string, nullable: true }
+                    definicao: { type: string, description: Conteudo do .yaml }
+                    template: { type: string, description: Conteudo do .hbs }
+        '401': { $ref: '#/components/responses/NaoAutorizado' }
+        '403': { $ref: '#/components/responses/Proibido' }
+
+  /api/v1/admin/schema:
+    get:
+      tags: [Autoria]
+      summary: JSON Schema da definicao de relatorio
+      description: |
+        Contrato formal do arquivo `.yaml`. Serve para o editor validar no
+        cliente e como especificacao entregue a uma IA que gere relatorios.
+      responses:
+        '200':
+          description: JSON Schema
+          content:
+            application/schema+json:
+              schema: { type: object }
+        '401': { $ref: '#/components/responses/NaoAutorizado' }
+        '403': { $ref: '#/components/responses/Proibido' }
+
+components:
+
+  securitySchemes:
+    jwtSemBearer:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: |
+        JWT do sap-rovema, **cru, sem o prefixo `Bearer`**. O
+        `jwt.interceptor.ts` do front-sap ja injeta neste formato.
+
+  parameters:
+    RelatorioId:
+      name: id
+      in: path
+      required: true
+      description: Numero gerado pelo banco na criacao (resposta do `POST /admin/relatorios`)
+      schema: { type: integer, format: int64, minimum: 1 }
+      example: 12
+
+  responses:
+    NaoAutorizado:
+      description: Token ausente, expirado ou invalido
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Erro' }
+          example: { erro: nao_autorizado, mensagem: Token ausente ou invalido. }
+    Proibido:
+      description: Autenticado, mas sem o papel necessario
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Erro' }
+          example: { erro: proibido, mensagem: Requer o papel admin. }
+    NaoEncontrado:
+      description: Relatorio ou versao inexistente
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Erro' }
+          example: { erro: nao_encontrado, mensagem: "Relatorio 'x' nao existe." }
+    ValidacaoFalhou:
+      description: |
+        A definicao foi recusada. `problemas[]` traz TODOS os erros, nao apenas
+        o primeiro - a tela deve listar todos de uma vez.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ValidacaoFalha' }
+          example:
+            erro: validacao_falhou
+            mensagem: A definicao do relatorio foi recusada.
+            problemas:
+              - caminho: consulta.sql
+                regra: tabela_nao_permitida
+                mensagem: "A tabela 'SYS.USERS' nao esta na lista permitida."
+              - caminho: parametros[1].nome
+                regra: parametro_nao_usado
+                mensagem: "O parametro 'filial' nao aparece no SQL."
+              - caminho: template
+                regra: escape_desabilitado
+                mensagem: "Uso de {{{ }}} na linha 12. Use {{ }} - o triplo nao escapa HTML."
+
+  schemas:
+
+    RelatorioResumo:
+      type: object
+      required: [id, nome, formatos, versaoPublicada]
+      properties:
+        id: { type: integer, format: int64, example: 12, description: Gerado pelo banco }
+        nome: { type: string, example: Vendas por cliente, description: Titulo; nao e unico }
+        descricao: { type: string, nullable: true }
+        formatos:
+          type: array
+          items: { type: string, enum: [pdf, html, csv] }
+        versaoPublicada: { type: integer, example: 3 }
+        atualizadoEm: { type: string, format: date-time }
+
+    RelatorioDetalhe:
+      allOf:
+        - $ref: '#/components/schemas/RelatorioResumo'
+        - type: object
+          required: [parametros, colunas]
+          properties:
+            parametros:
+              type: array
+              items: { $ref: '#/components/schemas/Parametro' }
+            colunas:
+              type: array
+              items: { $ref: '#/components/schemas/Coluna' }
+
+    RelatorioAdmin:
+      type: object
+      required: [id, nome, status, ultimaVersao, papeis]
+      properties:
+        id: { type: integer, format: int64 }
+        nome: { type: string }
+        descricao: { type: string, nullable: true }
+        status:
+          type: string
+          enum: [RASCUNHO, PUBLICADO]
+          description: PUBLICADO significa que existe `versaoPublicada`; ainda pode haver rascunho mais novo.
+        ultimaVersao: { type: integer, example: 4 }
+        versaoPublicada: { type: integer, nullable: true, example: 3 }
+        papeis:
+          type: array
+          items: { type: string }
+          example: [vendedor, admin]
+        formatos:
+          type: array
+          items: { type: string, enum: [pdf, html, csv] }
+        criadoPor: { type: string }
+        criadoEm: { type: string, format: date-time }
+        atualizadoEm: { type: string, format: date-time }
+
+    RelatorioAdminDetalhe:
+      allOf:
+        - $ref: '#/components/schemas/RelatorioAdmin'
+        - type: object
+          required: [versao, definicao, template]
+          properties:
+            versao: { type: integer }
+            definicao:
+              type: string
+              description: Conteudo YAML em texto, para o editor
+            template:
+              type: string
+              description: Conteudo Handlebars em texto, para o editor
+
+    Parametro:
+      type: object
+      required: [nome, tipo, obrigatorio]
+      description: |
+        Define um campo do formulario. O `nome` corresponde a um `:nome` no SQL.
+      properties:
+        nome: { type: string, pattern: '^[A-Za-z][A-Za-z0-9_]{0,63}$', example: dataInicio }
+        tipo:
+          type: string
+          enum: [texto, numero, date, datetime, booleano, lista, filial, vendedor, parceiro_negocio, item, localidade]
+          description: |
+            Determina o componente no formulario:
+            texto->input | numero->input number | date->datepicker |
+            datetime->datetime picker | booleano->checkbox | lista->select (usa `opcoes`)
+            filial->Bplid/BPLID inteiro | vendedor->SalesEmployeeCode inteiro (SlpCode) |
+            parceiro_negocio->CardCode texto | item->ItemCode texto | localidade->Code texto.
+            Somente cadastros existentes, sem SQL ou URL de busca configurável.
+        multiplo:
+          type: boolean
+          default: false
+          description: Para lista e cadastros, enviar array não vazio de códigos para IN (:nome). Opcional vazio envia null (não significa todos). Não enviar objetos ou CSV.
+        rotulo: { type: string, nullable: true, description: Label; se ausente, usar `nome` }
+        obrigatorio: { type: boolean, default: true }
+        padrao:
+          nullable: true
+          description: Valor inicial do campo
+        opcoes:
+          type: array
+          nullable: true
+          description: Obrigatorio quando `tipo` = lista
+          items:
+            type: object
+            properties:
+              valor: { type: string }
+              rotulo: { type: string }
+
+    Coluna:
+      type: object
+      required: [campo, titulo]
+      properties:
+        campo: { type: string, description: Nome da coluna retornada pela consulta }
+        titulo: { type: string, description: Cabecalho exibido }
+        tipo:
+          type: string
+          enum: [texto, numero, moeda, data, datahora, percentual]
+          default: texto
+        alinhamento:
+          type: string
+          enum: [esquerda, centro, direita]
+          nullable: true
+
+    RenderRequest:
+      type: object
+      required: [params]
+      properties:
+        params:
+          type: object
+          additionalProperties: true
+          description: |
+            Chaves devem corresponder EXATAMENTE a `parametros[].nome`. Faltando
+            ou sobrando resulta em 400 - o sap-odbc rejeita os dois casos.
+          example:
+            dataInicio: '2026-01-01'
+            dataFim: '2026-01-31'
+        logo:
+          type: string
+          nullable: true
+          description: |
+            Logo do cliente embutida (`data:image/png|jpeg|gif|webp;base64,...`), ate 512 KB.
+            O template a recebe em `{{meta.logo}}`. O servico NUNCA busca imagem por URL;
+            logo invalida e apenas descartada e o relatorio sai sem ela.
+          example: 'data:image/png;base64,iVBORw0KGgo...'
+
+    UploadRequest:
+      type: object
+      required: [definicao, template]
+      properties:
+        definicao:
+          type: string
+          description: Conteudo do arquivo .yaml
+        template:
+          type: string
+          description: Conteudo do arquivo .hbs (Handlebars)
+
+    ValidacaoOk:
+      type: object
+      required: [valido]
+      properties:
+        valido: { type: boolean, enum: [true] }
+        tabelas:
+          type: array
+          items: { type: string }
+          description: Tabelas detectadas no SQL, ja conferidas contra a allowlist
+        parametros:
+          type: array
+          items: { type: string }
+
+    ValidacaoFalha:
+      type: object
+      required: [erro, mensagem, problemas]
+      properties:
+        erro: { type: string, enum: [validacao_falhou] }
+        mensagem: { type: string }
+        problemas:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/Problema' }
+
+    Problema:
+      type: object
+      required: [caminho, regra, mensagem]
+      properties:
+        caminho:
+          type: string
+          description: Caminho no YAML ou "template"
+          example: consulta.sql
+        regra:
+          type: string
+          description: Identificador estavel da regra violada, para o front destacar o campo
+          enum:
+            - schema_invalido
+            - parametro_ausente
+            - parametro_nao_usado
+            - nome_parametro_invalido
+            - sql_com_comentario
+            - sql_multiplas_instrucoes
+            - sql_nao_e_select
+            - tabela_nao_permitida
+            - template_nao_compila
+            - escape_desabilitado
+            - tag_proibida
+            - recurso_externo_proibido
+            - limite_excedido
+        mensagem: { type: string, description: Texto pronto para exibir ao usuario }
+        linha: { type: integer, nullable: true, description: Linha no template, quando aplicavel }
+
+    Versao:
+      type: object
+      required: [versao, criadoPor, criadoEm, publicada]
+      properties:
+        versao: { type: integer }
+        criadoPor: { type: string }
+        criadoEm: { type: string, format: date-time }
+        publicadoEm: { type: string, format: date-time, nullable: true }
+        publicada: { type: boolean, description: true se esta e a versao servida hoje }
+
+    EventoAuditoria:
+      type: object
+      required: [quem, quando, acao]
+      properties:
+        quem: { type: string }
+        quando: { type: string, format: date-time }
+        acao:
+          type: string
+          enum: [CRIOU, NOVA_VERSAO, PUBLICOU, ROLLBACK, REMOVEU]
+        versao: { type: integer, nullable: true }
+
+    Erro:
+      type: object
+      required: [erro, mensagem]
+      properties:
+        erro:
+          type: string
+          description: Codigo estavel, para o front decidir o tratamento
+          example: nao_autorizado
+        mensagem: { type: string, description: Texto pronto para exibir }

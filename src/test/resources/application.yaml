@@ -1,0 +1,28 @@
+# Nos testes o HANA e substituido por H2, e o sap-odbc por WireMock.
+spring:
+  datasource:
+    url: jdbc:h2:mem:reports;DB_CLOSE_DELAY=-1;MODE=LEGACY
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+    hikari:
+      schema: ""
+  liquibase:
+    enabled: false
+    default-schema: ""
+
+keycloak:
+  enabled: false
+  url: "http://keycloak.invalid"
+  realm: "teste"
+  client-id: "front-sap"
+  sap-id-claim: "sap_code"
+
+odbc:
+  base-url: "http://localhost:9999"
+  api-key: "chave-de-teste"
+
+reports:
+  allowed-tables:
+    - SBOGRUPOROVEMA.OINV
+    - SBOGRUPOROVEMA.OCRD

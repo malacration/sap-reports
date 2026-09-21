@@ -1,0 +1,43 @@
+<style>
+  @page { size: A4; margin: 1.5cm }
+  body { font-family: Helvetica, Arial, sans-serif; font-size: 11px; color: #222 }
+  h1 { font-size: 18px; margin: 0 0 2px }
+  .logo { float: right; max-height: 42px; max-width: 160px; margin-left: 12px }
+  .periodo { color: #666; margin-bottom: 12px }
+  table { width: 100%; border-collapse: collapse }
+  thead { display: table-header-group }   /* repete o cabecalho a cada pagina */
+  th { background: #eee; text-align: left; padding: 6px; border-bottom: 2px solid #ccc }
+  td { padding: 5px 6px; border-bottom: 1px solid #eee }
+  .num { text-align: right }
+  tfoot td { font-weight: bold; border-top: 2px solid #ccc }
+</style>
+
+{{!-- Logo do front, enviada na geracao; ausente em chamadas sem logo. --}}
+{{#if meta.logo}}<img class="logo" src="{{meta.logo}}" alt="Logo">{{/if}}
+<h1>Vendas por cliente</h1>
+<div class="periodo">
+  Período: {{params.dataInicio}} a {{params.dataFim}}
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Código</th>
+      <th>Cliente</th>
+      <th class="num">Notas</th>
+      <th class="num">Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{#each linhas}}
+    <tr>
+      <td>{{CardCode}}</td>
+      <td>{{CardName}}</td>
+      <td class="num">{{NOTAS}}</td>
+      <td class="num">{{TOTAL}}</td>
+    </tr>
+    {{else}}
+    <tr><td colspan="4">Nenhuma venda no período.</td></tr>
+    {{/each}}
+  </tbody>
+</table>

@@ -1,0 +1,33 @@
+nome: Vendas por filial, vendedor e parceiro
+descricao: Exemplo de filtros com cadastros existentes
+papeis: [admin]
+parametros:
+  - nome: filiais
+    tipo: filial
+    rotulo: Filiais
+    obrigatorio: true
+    multiplo: true
+  - nome: slpCode
+    tipo: vendedor
+    rotulo: Vendedor
+    obrigatorio: true
+  - nome: cardCode
+    tipo: parceiro_negocio
+    rotulo: Parceiro de negócio
+    obrigatorio: true
+consulta:
+  sql: >
+    SELECT T0."CardCode" AS CLIENTE, C."CardName" AS NOME,
+           SUM(T0."DocTotal") AS TOTAL
+    FROM SBOGRUPOROVEMA.OINV T0
+    JOIN SBOGRUPOROVEMA.OCRD C ON C."CardCode" = T0."CardCode"
+    WHERE T0."BPLId" IN (:filiais)
+      AND T0."SlpCode" = :slpCode
+      AND C."CardCode" = :cardCode
+    GROUP BY T0."CardCode", C."CardName"
+  maxRows: 5000
+colunas:
+  - { campo: CLIENTE, titulo: Código, tipo: texto }
+  - { campo: NOME, titulo: Cliente, tipo: texto }
+  - { campo: TOTAL, titulo: Total, tipo: moeda }
+formatos: [pdf, html, csv]

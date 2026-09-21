@@ -1,0 +1,100 @@
+<style>
+  @page { size: A4; margin: 1.5cm }
+  body { font-family: Helvetica, Arial, sans-serif; font-size: 11px; color: #222 }
+  h1 { font-size: 18px; margin: 0 0 2px }
+  .logo { float: right; max-height: 42px; max-width: 160px; margin-left: 12px }
+  .periodo { color: #666; margin-bottom: 12px }
+  table { width: 100%; border-collapse: collapse }
+  thead { display: table-header-group }   /* repete o cabecalho a cada pagina */
+  th { background: #eee; text-align: left; padding: 6px; border-bottom: 2px solid #ccc }
+  td { padding: 5px 6px; border-bottom: 1px solid #eee }
+  .num { text-align: right }
+  tr.filial td { background: #25a246; color: #fff; font-weight: bold; font-size: 12px; padding-top: 8px }
+  tr.vendedor td { background: #e8f5ec; font-weight: bold; padding-left: 14px }
+  tr.subtotal td { font-weight: bold; border-bottom: 2px solid #ccc }
+  tr.total-filial td { font-weight: bold; background: #f4f4f4; border-bottom: 3px solid #25a246 }
+  tfoot td { font-weight: bold; font-size: 12px; border-top: 3px double #222 }
+  .recuo { padding-left: 24px }
+  h2 { font-size: 14px; margin: 22px 0 6px; page-break-after: avoid }
+  table.resumo { page-break-inside: avoid }
+</style>
+
+{{!-- Logo do front, enviada na geracao; ausente em chamadas sem logo. --}}
+{{#if meta.logo}}<img class="logo" src="{{meta.logo}}" alt="Logo">{{/if}}
+<h1>Vendas por filial e vendedor</h1>
+<div class="periodo">
+  Período: {{data params.dataInicio}} a {{data params.dataFim}}
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Código</th>
+      <th>Cliente</th>
+      <th class="num">Notas</th>
+      <th class="num">Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{!-- Nivel 1: filiais --}}
+    {{#each grupos}}
+    <tr class="filial"><td colspan="4">{{titulo}}: {{valor}}</td></tr>
+
+    {{!-- Nivel 2: vendedores DENTRO da filial --}}
+    {{#each grupos}}
+    <tr class="vendedor"><td colspan="4">{{titulo}}: {{valor}}</td></tr>
+    {{#each linhas}}
+    <tr>
+      <td class="recuo">{{CLIENTE}}</td>
+      <td>{{NOME}}</td>
+      <td class="num">{{NOTAS}}</td>
+      <td class="num">{{TOTAL}}</td>
+    </tr>
+    {{/each}}
+    <tr class="subtotal">
+      <td colspan="2" class="recuo">Subtotal {{valor}}</td>
+      <td class="num">{{totais.NOTAS}}</td>
+      <td class="num">{{totais.TOTAL}}</td>
+    </tr>
+    {{/each}}
+
+    <tr class="total-filial">
+      <td colspan="2">Total {{valor}}</td>
+      <td class="num">{{totais.NOTAS}}</td>
+      <td class="num">{{totais.TOTAL}}</td>
+    </tr>
+    {{else}}
+    <tr><td colspan="4">Nenhuma venda no período.</td></tr>
+    {{/each}}
+  </tbody>
+  <tfoot>
+    <tr>
+      <td colspan="2">Total geral</td>
+      <td class="num">{{totais.NOTAS}}</td>
+      <td class="num">{{totais.TOTAL}}</td>
+    </tr>
+  </tfoot>
+</table>
+
+{{!-- Resumos: cortes independentes, calculados no servidor. --}}
+{{#each resumos}}
+<h2>{{titulo}}</h2>
+<table class="resumo">
+  <thead>
+    <tr>
+      <th>Vendedor</th>
+      <th class="num">Notas</th>
+      <th class="num">Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{#each grupos}}
+    <tr>
+      <td>{{valor}}</td>
+      <td class="num">{{totais.NOTAS}}</td>
+      <td class="num">{{totais.TOTAL}}</td>
+    </tr>
+    {{/each}}
+  </tbody>
+</table>
+{{/each}}

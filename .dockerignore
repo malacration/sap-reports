@@ -1,0 +1,37 @@
+# ============================================================
+# CREDENCIAIS - nunca no contexto de build.
+# Sem isto, o `COPY src ./src` / `COPY ./ ./` levaria a senha real
+# do HANA para dentro de uma layer da imagem, de onde ela pode ser
+# extraida por qualquer um que baixe a imagem.
+# ============================================================
+src/main/resources/application.yaml
+application-local.yaml
+application-local.yml
+application-*-local.yaml
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.jks
+secrets/
+
+# Build e caches (o build acontece dentro da imagem)
+build/
+.gradle/
+.kotlin/
+out/
+bin/
+
+# Controle de versao e IDE
+.git/
+.github/
+.idea/
+.vscode/
+*.iml
+
+# Documentacao e temporarios
+docs/
+*.md
+*.log
+.DS_Store

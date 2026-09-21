@@ -1,0 +1,19 @@
+<style>
+  .logo { float: right; max-height: 42px; max-width: 160px; margin-left: 12px }
+</style>
+
+{{!-- Logo do front, enviada na geracao; ausente em chamadas sem logo. --}}
+{{#if meta.logo}}<img class="logo" src="{{meta.logo}}" alt="Logo">{{/if}}
+<h1>{{meta.nome}}</h1>
+<p>Filiais: {{#each params.filiais}}{{this}} {{/each}}</p>
+<p>Vendedor: {{params.slpCode}} | Parceiro: {{params.cardCode}}</p>
+<table>
+  <thead><tr><th>Código</th><th>Cliente</th><th>Total</th></tr></thead>
+  <tbody>
+    {{#each linhas}}
+    <tr><td>{{CLIENTE}}</td><td>{{NOME}}</td><td>{{TOTAL}}</td></tr>
+    {{else}}
+    <tr><td colspan="3">Nenhum registro para os filtros informados.</td></tr>
+    {{/each}}
+  </tbody>
+</table>

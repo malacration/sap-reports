@@ -1,0 +1,86 @@
+# ============================================================
+# MODELO VERSIONADO - sem nenhum segredo.
+#
+# Copie para application.yaml (ignorado pelo git) e preencha com os valores
+# reais. Se o application.yaml nao existir - CI, Docker, checkout limpo - o
+# build usa ESTE arquivo, e os valores vem das variaveis de ambiente.
+# ============================================================
+spring:
+  application:
+    name: sap-reports
+  datasource:
+    # Schema PROPRIO no HANA, so para os templates. Este usuario NAO tem acesso a
+    # dado de negocio - isso passa obrigatoriamente pelo sap-odbc.
+    url: ${REPORTS_JDBC_URL:jdbc:sap://SEU-HOST:30015/?validateCertificate=false}
+    username: ${REPORTS_DB_USER:USR_REPORTS}
+    password: ${REPORTS_DB_PASSWORD:}
+    driver-class-name: com.sap.db.jdbc.Driver
+    hikari:
+      schema: ${REPORTS_DB_SCHEMA:SAP_REPORTS}
+      maximum-pool-size: ${REPORTS_POOL_SIZE:5}
+      connection-timeout: 10000
+      pool-name: sap-reports-pool
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+    default-schema: ${REPORTS_DB_SCHEMA:SAP_REPORTS}
+  servlet:
+    multipart:
+      max-file-size: 1MB
+      max-request-size: 2MB
+
+server:
+  port: ${SERVER_PORT:2030}
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-exception: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+# Mesmo realm OIDC usado pelo sap-rovema. O servico aceita apenas RS256 via JWKS.
+keycloak:
+  enabled: ${KEYCLOAK_ENABLED:true}
+  url: https://sso.gruporovema.com.br
+  realm: rovema
+  client-id: sapvema
+  sap-id-claim: ${KEYCLOAK_SAP_ID_CLAIM:sap_code}
+
+# Origens autorizadas a chamar esta API pelo navegador. Necessario quando o
+# front aponta para um HOST diferente deste servico (acesso cruzado). Atras do
+# mesmo gateway, com prefixo /api/sap-reports, nao e preciso mexer aqui.
+cors:
+  origins: ${CORS_ORIGINS:http://localhost:4200}
+
+odbc:
+  base-url: ${ODBC_BASE_URL:http://localhost:2020}
+  api-key: ${ODBC_API_KEY:}
+  connect-timeout-seconds: 10
+  read-timeout-seconds: 150
+  query-timeout-seconds: 120
+
+reports:
+  # URL publica deste servico, usada no OpenAPI entregue ao ChatGPT.
+  # Atras de proxy o palpite automatico devolve o host interno - preencha em producao.
+  public-url: ${REPORTS_PUBLIC_URL:}
+  max-template-length: 200000
+  max-definition-length: 50000
+  max-rows: 10000
+  render-timeout-seconds: 120
+  author-role: admin
+  # Vazio aceita qualquer tabela que o sap-odbc permita. EM PRODUCAO, PREENCHA:
+  # e o que impede um relatorio enviado de despejar uma tabela inteira.
+  allowed-tables: []
+  #  - SBOGRUPOROVEMA.OINV
+  #  - SBOGRUPOROVEMA.OCRD
+
+logging:
+  level:
+    br.andrew.sap_reports: INFO

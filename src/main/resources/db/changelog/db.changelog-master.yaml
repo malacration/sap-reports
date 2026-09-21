@@ -1,0 +1,7 @@
+databaseChangeLog:
+  - include:
+      file: db/changelog/001-relatorios.yaml
+  - include:
+      file: db/changelog/002-tokens.yaml
+  - include:
+      file: db/changelog/003-relatorio-id-numerico.yaml

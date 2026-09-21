@@ -1,0 +1,41 @@
+nome: Vendas por filial e vendedor (dois níveis)
+descricao: Filial > vendedor > clientes, com subtotal do vendedor em cada filial, total da filial, total geral e resumo do vendedor somando todas as filiais
+papeis: [vendedor, admin]
+parametros:
+  - nome: dataInicio
+    tipo: date
+    rotulo: Data inicial
+    obrigatorio: true
+  - nome: dataFim
+    tipo: date
+    rotulo: Data final
+    obrigatorio: true
+consulta:
+  # ORDER BY na mesma ordem de `agrupar` (filial, depois vendedor): define a
+  # ordem em que os grupos aparecem.
+  sql: >
+    SELECT T0."BPLName" AS FILIAL, S."SlpName" AS VENDEDOR,
+           T0."CardCode" AS CLIENTE, T0."CardName" AS NOME,
+           COUNT(*) AS NOTAS, SUM(T0."DocTotal") AS TOTAL
+    FROM SBOGRUPOROVEMA.OINV T0
+    JOIN SBOGRUPOROVEMA.OSLP S ON S."SlpCode" = T0."SlpCode"
+    WHERE T0."DocDate" >= :dataInicio AND T0."DocDate" <= :dataFim
+      AND T0."CANCELED" = 'N'
+    GROUP BY T0."BPLName", S."SlpName", T0."CardCode", T0."CardName"
+    ORDER BY T0."BPLName", S."SlpName", SUM(T0."DocTotal") DESC
+  maxRows: 5000
+# Dois niveis: cada filial traz seus vendedores; cada vendedor, seus clientes.
+agrupar: [FILIAL, VENDEDOR]
+# Outro corte da mesma venda: o total de cada vendedor somando TODAS as filiais,
+# que o agrupamento acima (filial > vendedor) nao tem como mostrar.
+resumos:
+  - titulo: Total por vendedor (todas as filiais)
+    por: [VENDEDOR]
+colunas:
+  - { campo: FILIAL, titulo: Filial, tipo: texto }
+  - { campo: VENDEDOR, titulo: Vendedor, tipo: texto }
+  - { campo: CLIENTE, titulo: Código, tipo: texto }
+  - { campo: NOME, titulo: Cliente, tipo: texto }
+  - { campo: NOTAS, titulo: Notas, tipo: numero, alinhamento: direita, total: sum }
+  - { campo: TOTAL, titulo: Total, tipo: moeda, alinhamento: direita, total: sum }
+formatos: [pdf, html, csv]

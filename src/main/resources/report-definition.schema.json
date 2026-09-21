@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sap-reports/ReportDefinition.schema.json",
+  "title": "Definicao de relatorio",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["nome", "papeis", "consulta", "colunas"],
+  "properties": {
+    "id": { "type": "string", "deprecated": true, "description": "Legado e ignorado: o ID e gerado pelo banco na criacao." },
+    "nome": { "type": "string", "minLength": 1, "maxLength": 200, "description": "Titulo exibido ao usuario. Nao precisa ser unico." },
+    "descricao": { "type": ["string", "null"], "maxLength": 500 },
+    "papeis": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+    "formatos": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": { "enum": ["pdf", "html", "csv"] },
+      "default": ["pdf", "html", "csv"]
+    },
+    "parametros": {
+      "type": "array", "default": [],
+      "items": { "$ref": "#/$defs/parametro" }
+    },
+    "consulta": { "$ref": "#/$defs/consulta" },
+    "colunas": {
+      "type": "array", "minItems": 1,
+      "items": { "$ref": "#/$defs/coluna" }
+    },
+    "agrupar": {
+      "type": "array", "maxItems": 3, "uniqueItems": true, "default": [],
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Campos de 'colunas' que quebram o resultado em grupos (externo -> interno). Os grupos seguem a ordem do SQL. O template recebe 'grupos'."
+    },
+    "resumos": {
+      "type": "array", "maxItems": 5, "default": [],
+      "description": "Cortes independentes do agrupamento principal, com os mesmos totais das colunas (ex.: total por vendedor somando todas as filiais). O template recebe 'resumos'.",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["por"],
+        "properties": {
+          "titulo": { "type": ["string", "null"], "maxLength": 200 },
+          "por": { "type": "array", "minItems": 1, "maxItems": 3, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "consulta": {
+      "type": "object", "additionalProperties": false, "required": ["sql"],
+      "properties": {
+        "sql": { "type": "string", "minLength": 1 },
+        "maxRows": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "parametro": {
+      "type": "object", "additionalProperties": false, "required": ["nome", "tipo"],
+      "allOf": [{
+        "if": { "required": ["multiplo"], "properties": { "multiplo": { "const": true } } },
+        "then": { "properties": {
+          "tipo": { "enum": ["lista", "filial", "vendedor", "parceiro_negocio", "item", "localidade"] },
+          "padrao": { "type": ["array", "null"], "minItems": 1 }
+        } }
+      }],
+      "properties": {
+        "nome": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$" },
+        "tipo": { "enum": ["texto", "numero", "date", "datetime", "booleano", "lista", "filial", "vendedor", "parceiro_negocio", "item", "localidade"] },
+        "multiplo": { "type": "boolean", "default": false, "description": "Selecao multipla para lista e cadastros. Enviar array nao vazio de codigos; opcional sem selecao envia null." },
+        "rotulo": { "type": ["string", "null"] },
+        "obrigatorio": { "type": "boolean", "default": true },
+        "padrao": {},
+        "opcoes": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["valor", "rotulo"],
+            "properties": { "valor": { "type": "string" }, "rotulo": { "type": "string" } }
+          }
+        }
+      }
+    },
+    "coluna": {
+      "type": "object", "additionalProperties": false, "required": ["campo", "titulo"],
+      "properties": {
+        "campo": { "type": "string", "minLength": 1 },
+        "titulo": { "type": "string", "minLength": 1 },
+        "tipo": { "enum": ["texto", "numero", "moeda", "data", "datahora", "percentual"], "default": "texto" },
+        "alinhamento": { "type": ["string", "null"], "enum": ["esquerda", "centro", "direita", null] },
+        "total": {
+          "type": ["string", "null"], "enum": ["sum", "avg", "min", "max", "count", null],
+          "description": "Calculado no servidor por grupo e no total geral. sum/avg/min/max exigem tipo numero, moeda ou percentual."
+        }
+      }
+    }
+  }
+}

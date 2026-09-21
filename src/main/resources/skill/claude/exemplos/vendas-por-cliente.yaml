@@ -1,0 +1,36 @@
+nome: Vendas por cliente
+descricao: Total faturado por cliente no período, do maior para o menor
+papeis: [vendedor, admin]
+parametros:
+  - nome: dataInicio
+    tipo: date
+    rotulo: Data inicial
+    obrigatorio: true
+  - nome: dataFim
+    tipo: date
+    rotulo: Data final
+    obrigatorio: true
+consulta:
+  sql: >
+    SELECT T0.CardCode, T0.CardName, SUM(T0.DocTotal) AS TOTAL, COUNT(*) AS NOTAS
+    FROM SBOGRUPOROVEMA.OINV T0
+    WHERE T0.DocDate >= :dataInicio AND T0.DocDate <= :dataFim
+    GROUP BY T0.CardCode, T0.CardName
+    ORDER BY SUM(T0.DocTotal) DESC
+  maxRows: 5000
+colunas:
+  - campo: CardCode
+    titulo: Código
+    tipo: texto
+  - campo: CardName
+    titulo: Cliente
+    tipo: texto
+  - campo: NOTAS
+    titulo: Notas
+    tipo: numero
+    alinhamento: direita
+  - campo: TOTAL
+    titulo: Total
+    tipo: moeda
+    alinhamento: direita
+formatos: [pdf, html, csv]

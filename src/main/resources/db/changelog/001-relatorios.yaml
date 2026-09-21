@@ -1,0 +1,94 @@
+# Schema SAP_REPORTS. Guarda APENAS templates de relatorio - nenhum dado de
+# negocio. O usuario desta conexao nao tem privilegio em SBOGRUPOROVEMA.
+databaseChangeLog:
+
+  - changeSet:
+      id: 001-relatorio
+      author: sap-reports
+      preConditions:
+        # Tabela criada fora do Liquibase (bootstrap manual, execucao
+        # parcial anterior) marca o changeset como aplicado, em vez de
+        # derrubar a subida com 'cannot use duplicate table name'.
+        - onFail: MARK_RAN
+        - not:
+            tableExists:
+              tableName: RELATORIO
+      changes:
+        - createTable:
+            tableName: RELATORIO
+            columns:
+              - column: { name: ID,               type: NVARCHAR(64),  constraints: { primaryKey: true, nullable: false } }
+              - column: { name: NOME,             type: NVARCHAR(200), constraints: { nullable: false } }
+              - column: { name: DESCRICAO,        type: NVARCHAR(500) }
+              # Papeis do rules.yml que enxergam o relatorio, separados por virgula.
+              - column: { name: PAPEIS,           type: NVARCHAR(500), constraints: { nullable: false } }
+              - column: { name: FORMATOS,         type: NVARCHAR(100), constraints: { nullable: false } }
+              # Ponteiro para a versao servida hoje. NULL = so rascunho, invisivel ao consumidor.
+              - column: { name: VERSAO_PUBLICADA, type: INTEGER }
+              - column: { name: ULTIMA_VERSAO,    type: INTEGER,       constraints: { nullable: false } }
+              - column: { name: CRIADO_POR,       type: NVARCHAR(100), constraints: { nullable: false } }
+              - column: { name: CRIADO_EM,        type: TIMESTAMP,     constraints: { nullable: false } }
+              - column: { name: ATUALIZADO_EM,    type: TIMESTAMP,     constraints: { nullable: false } }
+
+  - changeSet:
+      id: 002-relatorio-versao
+      author: sap-reports
+      preConditions:
+        # Tabela criada fora do Liquibase (bootstrap manual, execucao
+        # parcial anterior) marca o changeset como aplicado, em vez de
+        # derrubar a subida com 'cannot use duplicate table name'.
+        - onFail: MARK_RAN
+        - not:
+            tableExists:
+              tableName: RELATORIO_VERSAO
+      changes:
+        - createTable:
+            tableName: RELATORIO_VERSAO
+            columns:
+              - column: { name: RELATORIO_ID, type: NVARCHAR(64), constraints: { nullable: false } }
+              - column: { name: VERSAO,       type: INTEGER,      constraints: { nullable: false } }
+              # Fonte enviada, guardada como texto. Versao e IMUTAVEL: publicar move o
+              # ponteiro em RELATORIO, nunca sobrescreve. Rollback volta o ponteiro.
+              - column: { name: DEFINICAO,    type: NCLOB,        constraints: { nullable: false } }
+              - column: { name: TEMPLATE,     type: NCLOB,        constraints: { nullable: false } }
+              - column: { name: CRIADO_POR,   type: NVARCHAR(100), constraints: { nullable: false } }
+              - column: { name: CRIADO_EM,    type: TIMESTAMP,    constraints: { nullable: false } }
+              - column: { name: PUBLICADO_EM, type: TIMESTAMP }
+        - addPrimaryKey:
+            tableName: RELATORIO_VERSAO
+            columnNames: RELATORIO_ID, VERSAO
+            constraintName: PK_RELATORIO_VERSAO
+        - addForeignKeyConstraint:
+            baseTableName: RELATORIO_VERSAO
+            baseColumnNames: RELATORIO_ID
+            referencedTableName: RELATORIO
+            referencedColumnNames: ID
+            constraintName: FK_VERSAO_RELATORIO
+            onDelete: CASCADE
+
+  - changeSet:
+      id: 003-relatorio-auditoria
+      author: sap-reports
+      preConditions:
+        # Tabela criada fora do Liquibase (bootstrap manual, execucao
+        # parcial anterior) marca o changeset como aplicado, em vez de
+        # derrubar a subida com 'cannot use duplicate table name'.
+        - onFail: MARK_RAN
+        - not:
+            tableExists:
+              tableName: RELATORIO_AUDITORIA
+      changes:
+        - createTable:
+            tableName: RELATORIO_AUDITORIA
+            columns:
+              - column: { name: ID,           type: BIGINT, autoIncrement: true, constraints: { primaryKey: true, nullable: false } }
+              - column: { name: RELATORIO_ID, type: NVARCHAR(64),  constraints: { nullable: false } }
+              - column: { name: VERSAO,       type: INTEGER }
+              - column: { name: ACAO,         type: NVARCHAR(20),  constraints: { nullable: false } }
+              - column: { name: QUEM,         type: NVARCHAR(100), constraints: { nullable: false } }
+              - column: { name: QUANDO,       type: TIMESTAMP,     constraints: { nullable: false } }
+        - createIndex:
+            tableName: RELATORIO_AUDITORIA
+            indexName: IDX_AUDITORIA_RELATORIO
+            columns:
+              - column: { name: RELATORIO_ID }

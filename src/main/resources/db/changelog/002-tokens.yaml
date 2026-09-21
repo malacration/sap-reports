@@ -1,0 +1,41 @@
+# Tokens de servico para agentes de IA.
+#
+# Guardamos apenas o HASH do token - nunca o valor. Quem perder o token gera
+# outro; nao ha "recuperar", de proposito: um token recuperavel e um segredo
+# que vaza junto com o backup do banco.
+databaseChangeLog:
+  - changeSet:
+      id: 004-relatorio-token
+      author: sap-reports
+      preConditions:
+        # Tabela criada fora do Liquibase (bootstrap manual, execucao
+        # parcial anterior) marca o changeset como aplicado, em vez de
+        # derrubar a subida com 'cannot use duplicate table name'.
+        - onFail: MARK_RAN
+        - not:
+            tableExists:
+              tableName: RELATORIO_TOKEN
+      changes:
+        - createTable:
+            tableName: RELATORIO_TOKEN
+            columns:
+              - column: { name: ID,          type: NVARCHAR(36),  constraints: { primaryKey: true, nullable: false } }
+              # Nome dado pelo humano ("GPT de relatorios"), para saber o que revogar.
+              - column: { name: NOME,        type: NVARCHAR(100), constraints: { nullable: false } }
+              # SHA-256 do token. Comparacao e por hash; o valor so existe uma vez,
+              # no momento da criacao, na resposta HTTP.
+              - column: { name: HASH,        type: NVARCHAR(64),  constraints: { nullable: false, unique: true } }
+              # Primeiros caracteres, so para a tela identificar qual e qual.
+              - column: { name: PREFIXO,     type: NVARCHAR(12),  constraints: { nullable: false } }
+              - column: { name: CRIADO_POR,  type: NVARCHAR(100), constraints: { nullable: false } }
+              - column: { name: CRIADO_EM,   type: TIMESTAMP,     constraints: { nullable: false } }
+              # Obrigatorio: token de maquina sem prazo e o principal risco.
+              - column: { name: EXPIRA_EM,   type: TIMESTAMP,     constraints: { nullable: false } }
+              - column: { name: REVOGADO_EM, type: TIMESTAMP }
+              # Ultimo uso: permite descobrir token esquecido e ainda ativo.
+              - column: { name: ULTIMO_USO,  type: TIMESTAMP }
+        - createIndex:
+            tableName: RELATORIO_TOKEN
+            indexName: IDX_TOKEN_HASH
+            columns:
+              - column: { name: HASH }

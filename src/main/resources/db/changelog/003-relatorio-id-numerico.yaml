@@ -1,0 +1,170 @@
+# RELATORIO.ID deixa de ser uma chave texto escolhida pelo autor ("vendas-por-cliente")
+# e passa a ser IDENTITY gerado pelo banco. O NOME vira so um titulo, sem unicidade.
+#
+# Banco ja existente: os dados sao preservados. A chave antiga fica em CHAVE_ANTIGA
+# (RELATORIO e RELATORIO_AUDITORIA) para rastrear "qual numero virou qual relatorio".
+#
+# So usa operacoes portaveis (createTable, dropTable, INSERT ... SELECT): o Liquibase
+# nao tem dialeto HANA e RENAME TABLE / RENAME COLUMN tem sintaxe diferente em cada
+# banco. Por isso a troca e feita por copia: salva -> recria -> devolve -> limpa.
+#
+# No HANA DDL faz auto-commit, entao a migracao nao e atomica. Ela foi dividida em
+# tres changesets para que uma falha no meio nunca perca dado: enquanto 006 nao
+# terminar, a copia integral esta nas tabelas MIGRACAO_*.
+databaseChangeLog:
+
+  - changeSet:
+      id: 005-relatorio-id-copia
+      author: sap-reports
+      # Sem preCondition de proposito: se uma copia parcial fosse marcada como
+      # aplicada, o 006 apagaria as tabelas originais. Melhor parar com erro.
+      changes:
+        - createTable:
+            tableName: MIGRACAO_RELATORIO
+            columns:
+              - column: { name: CHAVE,            type: NVARCHAR(64) }
+              - column: { name: NOME,             type: NVARCHAR(200) }
+              - column: { name: DESCRICAO,        type: NVARCHAR(500) }
+              - column: { name: PAPEIS,           type: NVARCHAR(500) }
+              - column: { name: FORMATOS,         type: NVARCHAR(100) }
+              - column: { name: VERSAO_PUBLICADA, type: INTEGER }
+              - column: { name: ULTIMA_VERSAO,    type: INTEGER }
+              - column: { name: CRIADO_POR,       type: NVARCHAR(100) }
+              - column: { name: CRIADO_EM,        type: TIMESTAMP }
+              - column: { name: ATUALIZADO_EM,    type: TIMESTAMP }
+        - createTable:
+            tableName: MIGRACAO_RELATORIO_VERSAO
+            columns:
+              - column: { name: CHAVE,        type: NVARCHAR(64) }
+              - column: { name: VERSAO,       type: INTEGER }
+              - column: { name: DEFINICAO,    type: NCLOB }
+              - column: { name: TEMPLATE,     type: NCLOB }
+              - column: { name: CRIADO_POR,   type: NVARCHAR(100) }
+              - column: { name: CRIADO_EM,    type: TIMESTAMP }
+              - column: { name: PUBLICADO_EM, type: TIMESTAMP }
+        - createTable:
+            tableName: MIGRACAO_RELATORIO_AUDITORIA
+            columns:
+              - column: { name: ID,     type: BIGINT }
+              - column: { name: CHAVE,  type: NVARCHAR(64) }
+              - column: { name: VERSAO, type: INTEGER }
+              - column: { name: ACAO,   type: NVARCHAR(20) }
+              - column: { name: QUEM,   type: NVARCHAR(100) }
+              - column: { name: QUANDO, type: TIMESTAMP }
+        - sql:
+            sql: >
+              INSERT INTO MIGRACAO_RELATORIO
+                (CHAVE, NOME, DESCRICAO, PAPEIS, FORMATOS, VERSAO_PUBLICADA,
+                 ULTIMA_VERSAO, CRIADO_POR, CRIADO_EM, ATUALIZADO_EM)
+              SELECT ID, NOME, DESCRICAO, PAPEIS, FORMATOS, VERSAO_PUBLICADA,
+                     ULTIMA_VERSAO, CRIADO_POR, CRIADO_EM, ATUALIZADO_EM
+              FROM RELATORIO
+        - sql:
+            sql: >
+              INSERT INTO MIGRACAO_RELATORIO_VERSAO
+                (CHAVE, VERSAO, DEFINICAO, TEMPLATE, CRIADO_POR, CRIADO_EM, PUBLICADO_EM)
+              SELECT RELATORIO_ID, VERSAO, DEFINICAO, TEMPLATE, CRIADO_POR, CRIADO_EM, PUBLICADO_EM
+              FROM RELATORIO_VERSAO
+        - sql:
+            sql: >
+              INSERT INTO MIGRACAO_RELATORIO_AUDITORIA (ID, CHAVE, VERSAO, ACAO, QUEM, QUANDO)
+              SELECT ID, RELATORIO_ID, VERSAO, ACAO, QUEM, QUANDO
+              FROM RELATORIO_AUDITORIA
+
+  - changeSet:
+      id: 006-relatorio-id-recria
+      author: sap-reports
+      changes:
+        - dropTable: { tableName: RELATORIO_VERSAO }
+        - dropTable: { tableName: RELATORIO }
+        - dropTable: { tableName: RELATORIO_AUDITORIA }
+
+        - createTable:
+            tableName: RELATORIO
+            columns:
+              - column: { name: ID,               type: BIGINT, autoIncrement: true, constraints: { primaryKey: true, nullable: false } }
+              # Titulo exibido. Nao e chave e pode repetir.
+              - column: { name: NOME,             type: NVARCHAR(200), constraints: { nullable: false } }
+              - column: { name: DESCRICAO,        type: NVARCHAR(500) }
+              - column: { name: PAPEIS,           type: NVARCHAR(500), constraints: { nullable: false } }
+              - column: { name: FORMATOS,         type: NVARCHAR(100), constraints: { nullable: false } }
+              - column: { name: VERSAO_PUBLICADA, type: INTEGER }
+              - column: { name: ULTIMA_VERSAO,    type: INTEGER,       constraints: { nullable: false } }
+              - column: { name: CRIADO_POR,       type: NVARCHAR(100), constraints: { nullable: false } }
+              - column: { name: CRIADO_EM,        type: TIMESTAMP,     constraints: { nullable: false } }
+              - column: { name: ATUALIZADO_EM,    type: TIMESTAMP,     constraints: { nullable: false } }
+              # Chave texto de antes da migracao; NULL nos relatorios criados depois.
+              - column: { name: CHAVE_ANTIGA,     type: NVARCHAR(64) }
+        # Os numeros sao atribuidos na ordem de criacao dos relatorios.
+        - sql:
+            sql: >
+              INSERT INTO RELATORIO
+                (NOME, DESCRICAO, PAPEIS, FORMATOS, VERSAO_PUBLICADA, ULTIMA_VERSAO,
+                 CRIADO_POR, CRIADO_EM, ATUALIZADO_EM, CHAVE_ANTIGA)
+              SELECT NOME, DESCRICAO, PAPEIS, FORMATOS, VERSAO_PUBLICADA, ULTIMA_VERSAO,
+                     CRIADO_POR, CRIADO_EM, ATUALIZADO_EM, CHAVE
+              FROM MIGRACAO_RELATORIO
+              ORDER BY CRIADO_EM, CHAVE
+
+        - createTable:
+            tableName: RELATORIO_VERSAO
+            columns:
+              - column: { name: RELATORIO_ID, type: BIGINT,        constraints: { nullable: false } }
+              - column: { name: VERSAO,       type: INTEGER,       constraints: { nullable: false } }
+              - column: { name: DEFINICAO,    type: NCLOB,         constraints: { nullable: false } }
+              - column: { name: TEMPLATE,     type: NCLOB,         constraints: { nullable: false } }
+              - column: { name: CRIADO_POR,   type: NVARCHAR(100), constraints: { nullable: false } }
+              - column: { name: CRIADO_EM,    type: TIMESTAMP,     constraints: { nullable: false } }
+              - column: { name: PUBLICADO_EM, type: TIMESTAMP }
+        - addPrimaryKey:
+            tableName: RELATORIO_VERSAO
+            columnNames: RELATORIO_ID, VERSAO
+            constraintName: PK_RELATORIO_VERSAO
+        - addForeignKeyConstraint:
+            baseTableName: RELATORIO_VERSAO
+            baseColumnNames: RELATORIO_ID
+            referencedTableName: RELATORIO
+            referencedColumnNames: ID
+            constraintName: FK_VERSAO_RELATORIO
+            onDelete: CASCADE
+        - sql:
+            sql: >
+              INSERT INTO RELATORIO_VERSAO
+                (RELATORIO_ID, VERSAO, DEFINICAO, TEMPLATE, CRIADO_POR, CRIADO_EM, PUBLICADO_EM)
+              SELECT R.ID, V.VERSAO, V.DEFINICAO, V.TEMPLATE, V.CRIADO_POR, V.CRIADO_EM, V.PUBLICADO_EM
+              FROM MIGRACAO_RELATORIO_VERSAO V
+              JOIN RELATORIO R ON R.CHAVE_ANTIGA = V.CHAVE
+
+        - createTable:
+            tableName: RELATORIO_AUDITORIA
+            columns:
+              - column: { name: ID,           type: BIGINT, autoIncrement: true, constraints: { primaryKey: true, nullable: false } }
+              # Sem FK: a auditoria sobrevive a remocao do relatorio.
+              - column: { name: RELATORIO_ID, type: BIGINT }
+              - column: { name: VERSAO,       type: INTEGER }
+              - column: { name: ACAO,         type: NVARCHAR(20),  constraints: { nullable: false } }
+              - column: { name: QUEM,         type: NVARCHAR(100), constraints: { nullable: false } }
+              - column: { name: QUANDO,       type: TIMESTAMP,     constraints: { nullable: false } }
+              # Chave texto de antes da migracao. Unica referencia que sobra para eventos
+              # de relatorios ja removidos (RELATORIO_ID fica NULL neles).
+              - column: { name: CHAVE_ANTIGA, type: NVARCHAR(64) }
+        - sql:
+            sql: >
+              INSERT INTO RELATORIO_AUDITORIA (RELATORIO_ID, VERSAO, ACAO, QUEM, QUANDO, CHAVE_ANTIGA)
+              SELECT R.ID, A.VERSAO, A.ACAO, A.QUEM, A.QUANDO, A.CHAVE
+              FROM MIGRACAO_RELATORIO_AUDITORIA A
+              LEFT JOIN RELATORIO R ON R.CHAVE_ANTIGA = A.CHAVE
+              ORDER BY A.ID
+        - createIndex:
+            tableName: RELATORIO_AUDITORIA
+            indexName: IDX_AUDITORIA_RELATORIO
+            columns:
+              - column: { name: RELATORIO_ID }
+
+  - changeSet:
+      id: 007-relatorio-id-limpa
+      author: sap-reports
+      changes:
+        - dropTable: { tableName: MIGRACAO_RELATORIO_AUDITORIA }
+        - dropTable: { tableName: MIGRACAO_RELATORIO_VERSAO }
+        - dropTable: { tableName: MIGRACAO_RELATORIO }

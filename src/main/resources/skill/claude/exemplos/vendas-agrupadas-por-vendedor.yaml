@@ -1,0 +1,34 @@
+nome: Vendas por vendedor (agrupado, com totais)
+descricao: Clientes agrupados por vendedor, com subtotal por vendedor e total geral
+papeis: [vendedor, admin]
+parametros:
+  - nome: dataInicio
+    tipo: date
+    rotulo: Data inicial
+    obrigatorio: true
+  - nome: dataFim
+    tipo: date
+    rotulo: Data final
+    obrigatorio: true
+consulta:
+  # ORDER BY comeca pelo campo de `agrupar`: os grupos saem na ordem das linhas,
+  # e sem isso o mesmo vendedor apareceria partido em varios grupos.
+  sql: >
+    SELECT S."SlpName" AS VENDEDOR, T0."CardCode" AS CLIENTE, T0."CardName" AS NOME,
+           COUNT(*) AS NOTAS, SUM(T0."DocTotal") AS TOTAL
+    FROM SBOGRUPOROVEMA.OINV T0
+    JOIN SBOGRUPOROVEMA.OSLP S ON S."SlpCode" = T0."SlpCode"
+    WHERE T0."DocDate" >= :dataInicio AND T0."DocDate" <= :dataFim
+      AND T0."CANCELED" = 'N'
+    GROUP BY S."SlpName", T0."CardCode", T0."CardName"
+    ORDER BY S."SlpName", SUM(T0."DocTotal") DESC
+  maxRows: 5000
+# Um grupo por vendedor. O servidor calcula os totais em cada grupo e no geral.
+agrupar: [VENDEDOR]
+colunas:
+  - { campo: VENDEDOR, titulo: Vendedor, tipo: texto }
+  - { campo: CLIENTE, titulo: Código, tipo: texto }
+  - { campo: NOME, titulo: Cliente, tipo: texto }
+  - { campo: NOTAS, titulo: Notas, tipo: numero, alinhamento: direita, total: sum }
+  - { campo: TOTAL, titulo: Total, tipo: moeda, alinhamento: direita, total: sum }
+formatos: [pdf, html, csv]

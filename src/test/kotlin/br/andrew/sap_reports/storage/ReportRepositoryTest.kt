@@ -48,6 +48,33 @@ class ReportRepositoryTest {
     }
 
     @Test
+    fun `pasta e gravada na criacao e acompanha cada nova versao`() {
+        val (repository, _) = repositorioDeTeste()
+        val id = repository.criar(def.copy(pasta = "Vendas"), "fonte-v1", "template-v1", "ana").id
+        assertEquals("Vendas", repository.buscar(id)!!.pasta)
+
+        repository.novaVersao(id, def.copy(pasta = "Financeiro"), "fonte-v2", "template-v2", "bia")
+        assertEquals("Financeiro", repository.buscar(id)!!.pasta)
+
+        repository.novaVersao(id, def.copy(pasta = "  "), "fonte-v3", "template-v3", "bia")
+        assertEquals(null, repository.buscar(id)!!.pasta)
+    }
+
+    @Test
+    fun `pasta de dois niveis e gravada normalizada`() {
+        val (repository, _) = repositorioDeTeste()
+        val id = repository.criar(def.copy(pasta = " Financeiro / Contas a pagar "), "fonte", "template", "ana").id
+        assertEquals("Financeiro/Contas a pagar", repository.buscar(id)!!.pasta)
+    }
+
+    @Test
+    fun `relatorio sem pasta fica com pasta nula`() {
+        val (repository, _) = repositorioDeTeste()
+        val id = repository.criar(def, "fonte", "template", "ana").id
+        assertEquals(null, repository.buscar(id)!!.pasta)
+    }
+
+    @Test
     fun `remocao tambem grava auditoria`() {
         val (repository, jdbc) = repositorioDeTeste()
         val id = repository.criar(def, "fonte", "template", "ana").id

@@ -13,6 +13,7 @@ data class RelatorioRegistro(
     val criadoPor: String,
     val criadoEm: LocalDateTime,
     val atualizadoEm: LocalDateTime,
+    val pasta: String? = null,
 )
 
 data class RelatorioVersaoRegistro(

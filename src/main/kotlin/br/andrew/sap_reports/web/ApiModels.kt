@@ -19,6 +19,7 @@ data class RelatorioResumo(
     val formatos: List<String>,
     val versaoPublicada: Int,
     val atualizadoEm: LocalDateTime,
+    val pasta: String? = null,
 )
 
 data class RelatorioDetalhe(
@@ -30,6 +31,7 @@ data class RelatorioDetalhe(
     val atualizadoEm: LocalDateTime,
     val parametros: List<Parametro>,
     val colunas: List<Coluna>,
+    val pasta: String? = null,
 )
 
 data class RelatorioAdmin(
@@ -44,6 +46,7 @@ data class RelatorioAdmin(
     val criadoPor: String,
     val criadoEm: LocalDateTime,
     val atualizadoEm: LocalDateTime,
+    val pasta: String? = null,
 )
 
 data class RelatorioAdminDetalhe(
@@ -61,6 +64,7 @@ data class RelatorioAdminDetalhe(
     val versao: Int,
     val definicao: String,
     val template: String,
+    val pasta: String? = null,
 )
 
 data class VersaoDto(

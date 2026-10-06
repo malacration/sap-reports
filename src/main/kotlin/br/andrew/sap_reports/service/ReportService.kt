@@ -53,6 +53,7 @@ class ReportService(
             papeis = base.papeis, formatos = base.formatos, criadoPor = base.criadoPor,
             criadoEm = base.criadoEm, atualizadoEm = base.atualizadoEm,
             versao = fonte.versao, definicao = fonte.definicao, template = fonte.template,
+            pasta = base.pasta,
         )
     }
 
@@ -74,6 +75,7 @@ class ReportService(
             if (def.papeis.none { it in papeis }) null else RelatorioResumo(
                 id = registro.id, nome = def.nome, descricao = def.descricao, formatos = def.formatos,
                 versaoPublicada = fonte.versao, atualizadoEm = registro.atualizadoEm,
+                pasta = def.pastaNormalizada(),
             )
         }
 
@@ -84,7 +86,7 @@ class ReportService(
         }
         return RelatorioDetalhe(
             id, def.nome, def.descricao, def.formatos, registro.versaoPublicada!!,
-            registro.atualizadoEm, def.parametros, def.colunas,
+            registro.atualizadoEm, def.parametros, def.colunas, def.pastaNormalizada(),
         )
     }
 
@@ -103,6 +105,6 @@ class ReportService(
 
     private fun RelatorioRegistro.admin() = RelatorioAdmin(
         id, nome, descricao, if (versaoPublicada == null) "RASCUNHO" else "PUBLICADO",
-        ultimaVersao, versaoPublicada, papeis, formatos, criadoPor, criadoEm, atualizadoEm,
+        ultimaVersao, versaoPublicada, papeis, formatos, criadoPor, criadoEm, atualizadoEm, pasta,
     )
 }

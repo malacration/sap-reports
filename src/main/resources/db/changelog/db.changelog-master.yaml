@@ -5,3 +5,5 @@ databaseChangeLog:
       file: db/changelog/002-tokens.yaml
   - include:
       file: db/changelog/003-relatorio-id-numerico.yaml
+  - include:
+      file: db/changelog/004-pasta.yaml

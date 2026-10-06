@@ -3,10 +3,8 @@ package br.andrew.sap_reports.render
 import br.andrew.sap_reports.definition.Coluna
 import br.andrew.sap_reports.definition.ReportDefinition
 import br.andrew.sap_reports.definition.Resumo
-import br.andrew.sap_reports.definition.TipoTotal
 import br.andrew.sap_reports.odbc.paraDecimal
 import java.math.BigDecimal
-import java.math.MathContext
 import java.text.Collator
 import java.util.Locale
 
@@ -35,7 +33,6 @@ class Agrupamento private constructor(
         val filhos: List<Grupo>,
     )
 
-    private val colunasComTotal = def.colunas.filter { TipoTotal.de(it.total) != null }
 
     val totais: Map<String, String> = totalizar(linhas.indices.toList())
     val grupos: List<Grupo> = agrupar(linhas.indices.toList(), nivel = 0)
@@ -45,7 +42,7 @@ class Agrupamento private constructor(
         val coluna = def.colunas.first { it.campo == campo }
         // LinkedHashMap: sem ordenacao explicita, preserva a ordem do ORDER BY da consulta.
         val porChave = LinkedHashMap<String, MutableList<Int>>()
-        indices.forEach { i -> porChave.getOrPut(chave(linhas[i][campo])) { mutableListOf() } += i }
+        indices.forEach { i -> porChave.getOrPut(chaveDoGrupo(linhas[i][campo])) { mutableListOf() } += i }
         val grupos = porChave.values.map { membros ->
             Grupo(
                 coluna = coluna,
@@ -58,30 +55,17 @@ class Agrupamento private constructor(
         return if (ordenarPorValor) grupos.sortedWith(POR_VALOR) else grupos
     }
 
-    private fun totalizar(indices: List<Int>): Map<String, String> =
-        colunasComTotal.associate { coluna ->
-            val tipo = TipoTotal.de(coluna.total)!!
-            val valores = indices.map { linhas[it][coluna.campo] }
-            coluna.campo to formatar(tipo, coluna, valores)
-        }
-
-    private fun formatar(tipo: TipoTotal, coluna: Coluna, valores: List<Any?>): String {
-        if (tipo == TipoTotal.COUNT) return ValueFormatter.numero(valores.count { it != null })
-        val numeros = valores.mapNotNull { it.paraDecimal() }
-        val resultado: BigDecimal = when (tipo) {
-            TipoTotal.SUM -> numeros.fold(BigDecimal.ZERO, BigDecimal::add)
-            TipoTotal.AVG -> if (numeros.isEmpty()) return "" else
-                numeros.fold(BigDecimal.ZERO, BigDecimal::add).divide(BigDecimal(numeros.size), MathContext.DECIMAL64)
-            TipoTotal.MIN -> numeros.minOrNull() ?: return ""
-            TipoTotal.MAX -> numeros.maxOrNull() ?: return ""
-            TipoTotal.COUNT -> error("tratado acima")
-        }
-        return ValueFormatter.porColuna(resultado, coluna)
+    /** Mesma conta do caminho em fluxo ([AgregadoEmFluxo]): ver [Acumulador]. */
+    private fun totalizar(indices: List<Int>): Map<String, String> {
+        val acumuladores = Acumulador.paraColunas(def)
+        indices.forEach { i -> acumuladores.forEach { (campo, acc) -> acc.somar(linhas[i][campo]) } }
+        return Acumulador.resultados(acumuladores)
     }
 
-    private fun chave(valor: Any?): String = valor?.toString() ?: ""
-
     companion object {
+        /** Linhas com o mesmo texto de valor caem no mesmo grupo; nulo vira "". */
+        fun chaveDoGrupo(valor: Any?): String = valor?.toString() ?: ""
+
         /** Agrupamento principal (`agrupar`), na ordem da consulta. */
         fun calcular(def: ReportDefinition, linhas: List<Map<String, Any?>>) =
             Agrupamento(def, linhas, def.agrupar, ordenarPorValor = false)
@@ -103,8 +87,10 @@ class Agrupamento private constructor(
         private val texto = Collator.getInstance(Locale.forLanguageTag("pt-BR")).apply { strength = Collator.PRIMARY }
 
         /** Numeros em ordem numerica, texto em ordem alfabetica pt-BR; vazio por ultimo. */
-        private val POR_VALOR = Comparator<Grupo> { a, b ->
-            val (x, y) = a.valorBruto to b.valorBruto
+        private val POR_VALOR = Comparator<Grupo> { a, b -> compararValores(a.valorBruto, b.valorBruto) }
+
+        /** Ordem dos resumos, compartilhada com o [AgregadoEmFluxo]. */
+        fun compararValores(x: Any?, y: Any?): Int =
             when {
                 x == null && y == null -> 0
                 x == null -> 1
@@ -114,6 +100,5 @@ class Agrupamento private constructor(
                     if (nx != null && ny != null) nx.compareTo(ny) else texto.compare(x.toString(), y.toString())
                 }
             }
-        }
     }
 }

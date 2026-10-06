@@ -130,7 +130,8 @@ colunas:
 - Todo campo de `agrupar` precisa estar em `colunas`, porque ele fornece o título e o formato.
 - As linhas são reunidas **pelo valor** do campo: um grupo nunca se parte. O `ORDER BY`
   do SQL só define a **ordem** em que os grupos aparecem — comece-o pelos campos de
-  `agrupar` para a ordem ficar previsível.
+  `agrupar` para a ordem ficar previsível. Em PDF/CSV acima de 10.000 linhas ele passa a
+  ser **obrigatório** (veja "Relatórios grandes").
 
 O template recebe, além de `linhas`:
 
@@ -184,6 +185,47 @@ resumos:
 
 No CSV, cada resumo vira um bloco depois do `Total geral`, uma linha por grupo
 (`Vendedor: Ana`, e em dois níveis `Vendedor: Ana / Filial: Matriz`).
+
+### Relatórios grandes (PDF e CSV acima de 10.000 linhas)
+
+PDF e CSV não ficam presos ao limite de linhas do HTML: acima de **10.000 linhas** o arquivo
+é montado em disco, em partes, e pode ir até o teto do serviço (500.000 linhas por padrão).
+Até 10.000 linhas nada muda. Acima disso, três regras:
+
+1. **Com `agrupar`, o `ORDER BY` precisa começar pelos campos de `agrupar`**, na mesma ordem.
+   No modo grande o grupo é fechado quando a próxima linha já é de outro grupo; se ele
+   reaparecer depois, o relatório falha com `agrupamento_desordenado` (422) em vez de sair
+   com subtotal errado. `resumos` não têm essa exigência.
+2. **Não declare `consulta.maxRows`** se o relatório precisa passar de 10.000 linhas: quando
+   declarado, ele limita também o PDF e o CSV.
+3. **O PDF é gerado em blocos** (2.000 linhas por padrão, cortados de preferência na troca
+   de grupo). Cada bloco começa numa página nova e repete o topo do template; a numeração de
+   página do CSS (`counter(page)`) recomeça a cada bloco.
+
+Para o template funcionar nos dois modos, use as variáveis de bloco — no modo pequeno elas
+valem "um bloco só" (`primeiroBloco` e `ultimoBloco` verdadeiros):
+
+| Variável | Conteúdo |
+|---|---|
+| `meta.bloco` | número do bloco (1, 2, …) |
+| `meta.primeiroBloco` / `meta.ultimoBloco` | se é o primeiro / o último bloco |
+| `meta.quantidade` | total de linhas do relatório inteiro |
+| `totais`, `resumos` | preenchidos **só no último bloco**; vazios nos demais |
+| `grupos[].continuacao` | o grupo veio do bloco anterior |
+| `grupos[].continua` | o grupo segue no próximo bloco — `totais` do grupo vazio aqui |
+| `grupos[].quantidade` | linhas do grupo **inteiro**, mesmo partido |
+
+`resumos[].grupos[].linhas` vem vazio no modo grande (resumo é só totais).
+
+```handlebars
+{{#if meta.primeiroBloco}}<h1>{{meta.nome}}</h1>{{/if}}
+{{#each grupos}}
+  <tr class="grupo"><td colspan="3">{{titulo}}: {{valor}}{{#if continuacao}} (continuação){{/if}}</td></tr>
+  {{#each linhas}}<tr><td>{{NOME}}</td><td>{{NOTAS}}</td><td>{{TOTAL}}</td></tr>{{/each}}
+  {{#unless continua}}<tr class="subtotal"><td>Subtotal</td><td>{{totais.NOTAS}}</td><td>{{totais.TOTAL}}</td></tr>{{/unless}}
+{{/each}}
+{{#if meta.ultimoBloco}}<tfoot><tr><td>Total geral</td><td>{{totais.NOTAS}}</td><td>{{totais.TOTAL}}</td></tr></tfoot>{{/if}}
+```
 
 Helpers de formatação disponíveis: `{{moeda x}}`, `{{numero x}}`, `{{percentual x}}`,
 `{{data x}}`. Colunas declaradas em `colunas` já chegam formatadas; os helpers servem

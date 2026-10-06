@@ -75,7 +75,8 @@ class AdminReportController(
         @RequestParam(required = false) versao: Int?,
         @RequestParam formato: String,
         @RequestBody request: RenderRequest,
-    ) = resposta(id, renderer.preview(id, versao, formato, request.params, request.logo))
+        response: jakarta.servlet.http.HttpServletResponse,
+    ) = enviar(id, renderer.preview(id, versao, formato, request.params, request.logo), response)
 
     @PostMapping("/relatorios/{id}/publicar")
     fun publicar(

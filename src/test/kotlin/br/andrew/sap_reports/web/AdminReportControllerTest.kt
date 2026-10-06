@@ -25,9 +25,10 @@ class AdminReportControllerTest {
         val validator = ReportUploadValidator(properties)
         val (repository, _) = repositorioDeTeste()
         val service = ReportService(repository, validator, DefinitionParser())
+        val odbc = OdbcClient(OdbcProperties(baseUrl = "http://localhost:1"))
         val renderService = RenderService(
-            repository, DefinitionParser(), OdbcClient(OdbcProperties(baseUrl = "http://localhost:1")),
-            HtmlRenderer(), PdfRenderer(), CsvRenderer(), properties,
+            repository, DefinitionParser(), odbc, HtmlRenderer(), properties,
+            br.andrew.sap_reports.service.RenderEmDisco(odbc, HtmlRenderer(), PdfRenderer(), CsvRenderer(), properties),
         )
         val controller = AdminReportController(service, renderService)
         val mvc = MockMvcBuilders.standaloneSetup(controller)

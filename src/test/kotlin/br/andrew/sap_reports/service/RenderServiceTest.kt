@@ -58,10 +58,12 @@ class RenderServiceTest {
         }
     }
 
-    private val service = RenderService(
-        repositorioDeTeste().first, DefinitionParser(), OdbcClient(OdbcProperties()),
-        HtmlRenderer(), PdfRenderer(), CsvRenderer(), ReportProperties(),
-    )
+    private val service = OdbcClient(OdbcProperties()).let { odbc ->
+        RenderService(
+            repositorioDeTeste().first, DefinitionParser(), odbc, HtmlRenderer(), ReportProperties(),
+            RenderEmDisco(odbc, HtmlRenderer(), PdfRenderer(), CsvRenderer(), ReportProperties()),
+        )
+    }
 
     @Test
     fun `parametro obrigatorio nulo e recusado mesmo com padrao`() {

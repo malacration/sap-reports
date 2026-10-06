@@ -73,6 +73,12 @@ reports:
   max-template-length: 200000
   max-definition-length: 50000
   max-rows: 10000
+  # PDF/CSV vem do sap-odbc em fluxo e sao montados em disco (ver RenderEmDisco).
+  # max-rows-arquivo nao passa do query.stream-max-rows-limit do sap-odbc.
+  max-rows-arquivo: 500000
+  linhas-em-memoria: 10000      # ate aqui, o caminho em memoria de sempre
+  linhas-por-bloco: 2000        # linhas por PDF parcial no relatorio grande
+  diretorio-temporario: ${REPORTS_TMP_DIR:}   # vazio = temp do sistema; precisa de espaco em disco
   render-timeout-seconds: 120
   author-role: admin
   # Vazio aceita qualquer tabela que o sap-odbc permita. EM PRODUCAO, PREENCHA:

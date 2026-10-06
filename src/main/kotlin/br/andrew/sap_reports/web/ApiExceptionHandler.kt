@@ -33,6 +33,10 @@ class ApiExceptionHandler {
     fun truncado(ex: ResultadoTruncadoException) =
         ResponseEntity.unprocessableContent().body(ErroDto("resultado_truncado", ex.message!!))
 
+    @ExceptionHandler(RelatorioDesordenadoException::class)
+    fun desordenado(ex: RelatorioDesordenadoException) =
+        ResponseEntity.unprocessableContent().body(ErroDto("agrupamento_desordenado", ex.message!!))
+
     @ExceptionHandler(
         ParametrosInvalidosException::class,
         FormatoInvalidoException::class,
@@ -46,7 +50,12 @@ class ApiExceptionHandler {
     @ExceptionHandler(OdbcException::class)
     fun odbc(ex: OdbcException): ResponseEntity<ErroDto> {
         val timeout = ex.status == 504 || ex.codigo == "timeout"
-        val status = if (timeout) HttpStatus.GATEWAY_TIMEOUT else HttpStatus.BAD_GATEWAY
+        val status = when {
+            timeout -> HttpStatus.GATEWAY_TIMEOUT
+            // Fluxos do sap-odbc esgotados: temporario, o usuario pode tentar de novo.
+            ex.codigo == "ocupado" -> HttpStatus.SERVICE_UNAVAILABLE
+            else -> HttpStatus.BAD_GATEWAY
+        }
         return ResponseEntity.status(status).body(ErroDto(ex.codigo, ex.message))
     }
 

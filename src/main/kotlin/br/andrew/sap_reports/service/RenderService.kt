@@ -6,9 +6,7 @@ import br.andrew.sap_reports.definition.Parametro
 import br.andrew.sap_reports.odbc.OdbcClient
 import br.andrew.sap_reports.definition.ValoresParametro.converter
 import br.andrew.sap_reports.definition.ValoresParametro.INVALIDO
-import br.andrew.sap_reports.render.CsvRenderer
 import br.andrew.sap_reports.render.HtmlRenderer
-import br.andrew.sap_reports.render.PdfRenderer
 import br.andrew.sap_reports.storage.RelatorioNaoEncontradoException
 import br.andrew.sap_reports.storage.ReportRepository
 import br.andrew.sap_reports.web.AcessoRelatorioNegadoException
@@ -24,9 +22,8 @@ class RenderService(
     private val parser: DefinitionParser,
     private val odbc: OdbcClient,
     private val htmlRenderer: HtmlRenderer,
-    private val pdfRenderer: PdfRenderer,
-    private val csvRenderer: CsvRenderer,
     private val properties: ReportProperties,
+    private val emDisco: RenderEmDisco,
 ) {
     fun renderizarPublicado(
         id: Long,
@@ -66,26 +63,18 @@ class RenderService(
             ?.takeIf { formato in def.formatos }
             ?: throw FormatoInvalidoException(formato)
         val params = validarParametros(def.parametros, recebidos)
+        // PDF e CSV vem em fluxo e sao montados em disco, sem o teto de memoria do HTML.
+        if (tipo != Formato.HTML) return emDisco.gerar(def, template, tipo, params, logo)
+
+        // HTML continua em memoria e com o teto antigo: o navegador carrega a pagina inteira.
         val limite = def.consulta.maxRows ?: properties.maxRows
         val resposta = odbc.consultar(def.consulta.sql, params, limite)
         if (resposta.truncated) throw ResultadoTruncadoException(limite)
-
-        return when (tipo) {
-            Formato.HTML -> SaidaRenderizada(
-                htmlRenderer.renderizar(template, def, resposta, params, logo).toByteArray(Charsets.UTF_8),
-                "text/html;charset=UTF-8",
-                "html",
-            )
-            Formato.PDF -> {
-                val html = htmlRenderer.renderizar(template, def, resposta, params, logo)
-                SaidaRenderizada(pdfRenderer.renderizar(html), "application/pdf", "pdf")
-            }
-            Formato.CSV -> SaidaRenderizada(
-                csvRenderer.renderizar(def, resposta),
-                "text/csv;charset=UTF-8",
-                "csv",
-            )
-        }
+        return SaidaRenderizada(
+            htmlRenderer.renderizar(template, def, resposta, params, logo).toByteArray(Charsets.UTF_8),
+            "text/html;charset=UTF-8",
+            "html",
+        )
     }
 
     internal fun validarParametros(

@@ -571,6 +571,7 @@ components:
         id: { type: integer, format: int64, example: 12, description: Gerado pelo banco }
         nome: { type: string, example: Vendas por cliente, description: Titulo; nao e unico }
         descricao: { type: string, nullable: true }
+        pasta: { type: string, nullable: true, example: Financeiro/Contas a pagar, description: Pasta da listagem, 'Area' ou 'Area/Assunto' (ate 2 niveis, separados por '/'); ausente = Sem pasta }
         formatos:
           type: array
           items: { type: string, enum: [pdf, html, csv] }
@@ -597,6 +598,7 @@ components:
         id: { type: integer, format: int64 }
         nome: { type: string }
         descricao: { type: string, nullable: true }
+        pasta: { type: string, nullable: true, description: Pasta da ultima versao, 'Area' ou 'Area/Assunto' (ate 2 niveis) }
         status:
           type: string
           enum: [RASCUNHO, PUBLICADO]

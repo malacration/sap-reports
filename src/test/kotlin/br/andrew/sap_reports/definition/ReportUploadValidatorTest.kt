@@ -202,6 +202,83 @@ class ReportUploadValidatorTest {
         assertTrue(Regra.SCHEMA_INVALIDO in regras(comTypo))
     }
 
+    private fun comPasta(valor: String) = definicao().replace("nome: Vendas\n", "nome: Vendas\npasta: $valor\n")
+
+    @Test
+    fun `aceita pasta de um ou dois niveis e definicao sem pasta`() {
+        assertTrue(regras(comPasta("Vendas")).isEmpty())
+        assertTrue(regras(comPasta("'Contas a receber'")).isEmpty())
+        assertTrue(regras(comPasta("Financeiro/Contas a pagar")).isEmpty())
+        assertTrue(regras(comPasta("'Financeiro / Contas a pagar'")).isEmpty())
+        assertTrue(regras(definicao()).isEmpty())
+    }
+
+    @Test
+    fun `pasta normaliza os espacos em volta de cada nivel`() {
+        assertEquals("Financeiro/Contas a pagar", ReportDefinition(pasta = " Financeiro / Contas a pagar ").pastaNormalizada())
+        assertEquals("Vendas", ReportDefinition(pasta = "  Vendas ").pastaNormalizada())
+        assertEquals(null, ReportDefinition(pasta = " \t ").pastaNormalizada())
+        // Nivel vazio nao some na normalizacao: o validador precisa enxerga-lo para recusar.
+        assertEquals("A//B", ReportDefinition(pasta = "A / / B").pastaNormalizada())
+    }
+
+    @Test
+    fun `pasta em branco e aceita e cai em sem pasta`() {
+        assertTrue(regras(comPasta("'   '")).isEmpty())
+        assertEquals(null, ReportDefinition(pasta = "   ").pastaNormalizada())
+        assertEquals("Vendas", ReportDefinition(pasta = "  Vendas ").pastaNormalizada())
+    }
+
+    @Test
+    fun `recusa pasta com mais de dois niveis`() {
+        assertEquals(setOf(Regra.LIMITE_EXCEDIDO), regras(comPasta("A/B/C")))
+        assertEquals(setOf(Regra.LIMITE_EXCEDIDO), regras(comPasta("'Empresa A / Fiscal / Conciliacao'")))
+    }
+
+    @Test
+    fun `o que o trim do Kotlin apara e o que o schema trata como espaco das pontas`() {
+        // O pattern do JSON Schema lista estes espacos de forma explicita (nao usa \s, que diverge do trim).
+        assertEquals("A", ReportDefinition(pasta = "\u001CA\u001F").pastaNormalizada())
+        assertEquals("A", ReportDefinition(pasta = "\u00A0A\u3000").pastaNormalizada())
+        assertEquals("A", ReportDefinition(pasta = "\u2003A\u2028").pastaNormalizada())
+        // U+FEFF nao e espaco para o Kotlin: fica, e como nao e controle o validador aceita.
+        assertEquals("\uFEFFA", ReportDefinition(pasta = "\uFEFFA").pastaNormalizada())
+    }
+
+    @Test
+    fun `recusa pasta com nivel vazio`() {
+        for (vazia in listOf("'A//B'", "'A/'", "'/A'", "'/'", "'A/ /B'", "'A / '")) {
+            assertEquals(setOf(Regra.SCHEMA_INVALIDO), regras(comPasta(vazia)), vazia)
+        }
+    }
+
+    @Test
+    fun `recusa pasta acima do limite de caracteres`() {
+        assertEquals(setOf(Regra.LIMITE_EXCEDIDO), regras(comPasta("A".repeat(101))))
+        assertTrue(regras(comPasta("A".repeat(100))).isEmpty())
+        // O limite de 100 vale para o caminho inteiro, com a barra (e a coluna e uma so).
+        assertEquals(setOf(Regra.LIMITE_EXCEDIDO), regras(comPasta("A".repeat(60) + "/" + "B".repeat(60))))
+        assertTrue(regras(comPasta("A".repeat(49) + "/" + "B".repeat(50))).isEmpty())
+    }
+
+    @Test
+    fun `recusa controle colado a barra, que o trim de cada nivel esconderia`() {
+        assertEquals(setOf(Regra.SCHEMA_INVALIDO), regras(comPasta("\"A/\\tB\"")))
+        assertEquals(setOf(Regra.SCHEMA_INVALIDO), regras(comPasta("\"A\\t/B\"")))
+        assertEquals(setOf(Regra.SCHEMA_INVALIDO), regras(comPasta("\"A/\\u0085B\"")))
+    }
+
+    @Test
+    fun `controle so nas pontas e aparado como espaco, como sempre foi`() {
+        assertTrue(regras(comPasta("\"\\tVendas\\n\"")).isEmpty())
+        assertTrue(regras(comPasta("\"\\t\"")).isEmpty())
+    }
+
+    @Test
+    fun `recusa pasta com caractere de controle`() {
+        assertEquals(setOf(Regra.SCHEMA_INVALIDO), regras(comPasta("\"Vendas\\tX\"")))
+    }
+
     @Test
     fun `aceita definicao sem id - o banco gera o numero`() {
         assertTrue(regras(definicao().replace("id: vendas\n", "")).isEmpty())

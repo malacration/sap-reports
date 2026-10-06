@@ -1,0 +1,23 @@
+# Pasta do relatorio na listagem (Area ou Area/Assunto, ate 2 niveis). Vem do campo `pasta` do YAML e e
+# copiada para a coluna a cada versao, como ja acontece com NOME e DESCRICAO.
+#
+# Nula nos relatorios existentes: nenhum deles declara `pasta` ainda, entao
+# nao ha o que migrar.
+databaseChangeLog:
+  - changeSet:
+      id: 008-relatorio-pasta
+      author: sap-reports
+      preConditions:
+        # Coluna criada fora do Liquibase marca o changeset como aplicado, em
+        # vez de derrubar a subida com 'duplicate column name'.
+        - onFail: MARK_RAN
+        - not:
+            columnExists:
+              tableName: RELATORIO
+              columnName: PASTA
+      changes:
+        # SQL direto, e nao `addColumn`: o Liquibase gera `ADD PASTA NVARCHAR(100)`
+        # e o HANA recusa ([257] syntax error) - ele exige a coluna entre parenteses.
+        # A forma com parenteses e aceita tambem pelo H2 dos testes.
+        - sql:
+            sql: ALTER TABLE RELATORIO ADD (PASTA NVARCHAR(100))

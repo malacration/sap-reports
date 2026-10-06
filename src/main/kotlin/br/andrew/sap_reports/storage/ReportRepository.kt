@@ -31,6 +31,7 @@ class ReportRepository(
             criadoPor = rs.getString("CRIADO_POR"),
             criadoEm = rs.getTimestamp("CRIADO_EM").toLocalDateTime(),
             atualizadoEm = rs.getTimestamp("ATUALIZADO_EM").toLocalDateTime(),
+            pasta = rs.getString("PASTA"),
         )
     }
 
@@ -53,10 +54,10 @@ class ReportRepository(
         val id = inserirComIdentity(
             """
             INSERT INTO RELATORIO
-                (NOME, DESCRICAO, PAPEIS, FORMATOS, VERSAO_PUBLICADA,
+                (NOME, DESCRICAO, PASTA, PAPEIS, FORMATOS, VERSAO_PUBLICADA,
                  ULTIMA_VERSAO, CRIADO_POR, CRIADO_EM, ATUALIZADO_EM)
             VALUES
-                (:nome, :descricao, :papeis, :formatos, NULL,
+                (:nome, :descricao, :pasta, :papeis, :formatos, NULL,
                  1, :quem, :agora, :agora)
             """.trimIndent(),
             parametrosBase(def, quem, agora),
@@ -82,7 +83,7 @@ class ReportRepository(
             .addValue("versao", numero)
         jdbc.update(
             """
-            UPDATE RELATORIO SET NOME=:nome, DESCRICAO=:descricao, PAPEIS=:papeis,
+            UPDATE RELATORIO SET NOME=:nome, DESCRICAO=:descricao, PASTA=:pasta, PAPEIS=:papeis,
                 FORMATOS=:formatos, ULTIMA_VERSAO=:versao, ATUALIZADO_EM=:agora
             WHERE ID=:id
             """.trimIndent(),
@@ -259,6 +260,7 @@ class ReportRepository(
         MapSqlParameterSource()
             .addValue("nome", def.nome)
             .addValue("descricao", def.descricao)
+            .addValue("pasta", def.pastaNormalizada())
             .addValue("papeis", def.papeis.joinToString(","))
             .addValue("formatos", def.formatos.joinToString(","))
             .addValue("quem", quem)

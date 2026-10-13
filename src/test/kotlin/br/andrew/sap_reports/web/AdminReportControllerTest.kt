@@ -29,6 +29,7 @@ class AdminReportControllerTest {
         val renderService = RenderService(
             repository, DefinitionParser(), odbc, HtmlRenderer(), properties,
             br.andrew.sap_reports.service.RenderEmDisco(odbc, HtmlRenderer(), PdfRenderer(), CsvRenderer(), properties),
+            br.andrew.sap_reports.service.FiliaisDoUsuario(odbc, properties),
         )
         val controller = AdminReportController(service, renderService)
         val mvc = MockMvcBuilders.standaloneSetup(controller)

@@ -38,7 +38,7 @@ class ConsumerReportController(
         response: HttpServletResponse,
     ) = enviar(
         id,
-        renderer.renderizarPublicado(id, formato, request.params, principal.usuario().papeis, request.logo),
+        renderer.renderizarPublicado(id, formato, request.params, principal.usuario(), request.logo),
         response,
     )
 

@@ -146,4 +146,6 @@ class ResultadoTruncadoException(val limite: Int) : RuntimeException(
     "A consulta retornou mais de $limite linhas. Restrinja o periodo.",
 )
 class FormatoInvalidoException(formato: String) : RuntimeException("Formato '$formato' invalido ou nao habilitado.")
-class AcessoRelatorioNegadoException : RuntimeException("Usuario sem papel para acessar este relatorio.")
+class AcessoRelatorioNegadoException(
+    mensagem: String = "Usuario sem papel para acessar este relatorio.",
+) : RuntimeException(mensagem)

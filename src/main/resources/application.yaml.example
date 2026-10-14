@@ -86,6 +86,10 @@ reports:
   allowed-tables: []
   #  - SBOGRUPOROVEMA.OINV
   #  - SBOGRUPOROVEMA.OCRD
+  # Schema do cadastro de filiais do usuario (OHEM/HEM10/OSLP/@RO_FILIAL_LINHA/OBPL),
+  # conferido ao gerar relatorio com parametro `filial`. Vazio = schema padrao da
+  # conexao do sap-odbc; preencha se o sap-odbc tiver allowed-schemas.
+  schema-cadastro:
 
 logging:
   level:

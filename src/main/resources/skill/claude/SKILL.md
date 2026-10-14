@@ -299,9 +299,13 @@ Para localidade, confirme a relação real com o cadastro; não presuma um campo
 Obrigatórios exigem seleção. Opcional vazio envia `null`, nunca `[]`.
 `IN (NULL)` não retorna linhas; vazio não significa “todos”.
 Para oferecer “todos” com array, use um booleano separado no SQL
-(`:todos = TRUE OR T0."BPLId" IN (:filiais)`), declarando ambos.
-Não use `:filiais IS NULL` para testar um array: a expansão dos binds pode produzir SQL inválido.
-Seletores são filtros, não uma barreira de autorização nem validação da existência dos códigos.
+(`:todos = TRUE OR T0."SlpCode" IN (:vendedores)`), declarando ambos.
+Não use `:vendedores IS NULL` para testar um array: a expansão dos binds pode produzir SQL inválido.
+`filial` é conferida no cadastro do usuário ao gerar: filiais fora do cadastro dele são cortadas
+(`admin` e `vendedor_admin` veem todas) e, se não sobrar nenhuma, o relatório é recusado.
+Por isso um `padrao` com todas as filiais serve a qualquer usuário. Nunca ofereça “todas”
+para filial (booleano ou `IS NULL`): isso dribla a conferência.
+Os demais seletores são filtros, não uma barreira de autorização nem validação da existência dos códigos.
 Um novo cadastro exige implementação no registro do front e no contrato do backend; não invente tipos.
 
 ## Referências

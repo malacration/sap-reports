@@ -47,7 +47,7 @@ class ExecucaoService(
         renderer.validarParametros(relatorio.parametros, pedido.params)
         return iniciar(
             novaExecucao(usuario, TipoExecucao.RENDER, id, relatorio.nome, relatorio.versaoPublicada, formato, pedido)
-                .copy(papeis = usuario.papeis),
+                .copy(solicitante = Solicitante.de(usuario)),
         )
     }
 
@@ -91,7 +91,9 @@ class ExecucaoService(
         val final = try {
             val saida = when (execucao.tipo) {
                 TipoExecucao.RENDER -> renderer.renderizarPublicado(
-                    execucao.relatorioId, execucao.formato, execucao.params, execucao.papeis, execucao.logo,
+                    execucao.relatorioId, execucao.formato, execucao.params,
+                    execucao.solicitante?.paraUsuario() ?: throw IllegalStateException("Execucao sem solicitante"),
+                    execucao.logo,
                 )
                 TipoExecucao.PREVIEW -> renderer.preview(
                     execucao.relatorioId, execucao.versao, execucao.formato, execucao.params, execucao.logo,
@@ -106,7 +108,7 @@ class ExecucaoService(
                 ?: FalhaExecucao(500, "erro_interno", "Erro inesperado ao gerar o relatorio. O detalhe foi registrado no log do servidor.")
             execucao.copy(status = StatusExecucao.FALHOU, falha = falha)
         }
-        store.salvar(final.copy(concluidoEm = agora(), logo = null, papeis = emptySet()))
+        store.salvar(final.copy(concluidoEm = agora(), logo = null, solicitante = null))
     }
 
     /**
@@ -120,7 +122,7 @@ class ExecucaoService(
             if (execucao.status == StatusExecucao.EXECUTANDO) {
                 store.salvar(
                     execucao.copy(
-                        status = StatusExecucao.FALHOU, concluidoEm = agora(), logo = null, papeis = emptySet(),
+                        status = StatusExecucao.FALHOU, concluidoEm = agora(), logo = null, solicitante = null,
                         falha = FalhaExecucao(503, "execucao_interrompida", "O servico reiniciou durante a execucao. Gere novamente."),
                     ),
                 )

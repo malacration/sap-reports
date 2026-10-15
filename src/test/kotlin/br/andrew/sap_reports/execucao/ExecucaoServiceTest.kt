@@ -70,6 +70,7 @@ class ExecucaoServiceTest {
         val renderer = RenderService(
             repository, DefinitionParser(), odbc, HtmlRenderer(), properties,
             RenderEmDisco(odbc, HtmlRenderer(), PdfRenderer(), CsvRenderer(), properties),
+            br.andrew.sap_reports.service.FiliaisDoUsuario(odbc, properties),
         )
         service = ExecucaoService(
             store, reports, renderer,
@@ -235,13 +236,13 @@ class ExecucaoServiceTest {
     }
 
     @Test
-    fun `logo e papeis nao ficam guardados depois de executar`() {
+    fun `logo e solicitante nao ficam guardados depois de executar`() {
         val pedido = service.iniciarRender(relatorioId, "html", params.copy(logo = "data:image/png;base64,AAAA"), ana)
         assertNotNull(store.buscar(pedido.id)!!.logo)
         rodarFila()
         val guardada = store.buscar(pedido.id)!!
         assertNull(guardada.logo)
-        assertTrue(guardada.papeis.isEmpty())
+        assertNull(guardada.solicitante)
     }
 
     private class RelogioAjustavel(private var agora: Instant) : Clock() {

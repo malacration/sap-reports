@@ -47,6 +47,7 @@ class McpControllerTest {
         val renderer = RenderService(
             repository, DefinitionParser(), odbc, HtmlRenderer(), properties,
             RenderEmDisco(odbc, HtmlRenderer(), PdfRenderer(), CsvRenderer(), properties),
+            br.andrew.sap_reports.service.FiliaisDoUsuario(odbc, properties),
         )
         execucoes = ExecucaoService(store, reports, renderer, ExecucaoProperties(), Clock.systemUTC())
         MockMvcBuilders.standaloneSetup(

@@ -1,5 +1,6 @@
 package br.andrew.sap_reports.execucao
 
+import br.andrew.sap_reports.security.UsuarioAutenticado
 import java.time.Instant
 
 enum class TipoExecucao { RENDER, PREVIEW }
@@ -15,7 +16,7 @@ enum class StatusExecucao {
  * Uma execucao de relatorio, como fica guardada no Redis.
  *
  * Guarda os parametros para permitir "gerar novamente" depois que o arquivo
- * expira. `logo` e `papeis` so servem para executar: sao descartados ao terminar.
+ * expira. `logo` e `solicitante` so servem para executar: sao descartados ao terminar.
  */
 data class Execucao(
     val id: String,
@@ -29,8 +30,11 @@ data class Execucao(
     val formato: String,
     val params: Map<String, Any?> = emptyMap(),
     val logo: String? = null,
-    /** Papeis do usuario no pedido: o render confere o acesso de novo ao executar. */
-    val papeis: Set<String> = emptySet(),
+    /**
+     * Quem pediu, como estava no pedido: o render confere o acesso de novo ao executar e corta as
+     * filiais pelo cadastro dele (FiliaisDoUsuario).
+     */
+    val solicitante: Solicitante? = null,
     val status: StatusExecucao = StatusExecucao.PENDENTE,
     val criadoEm: Instant,
     val iniciadoEm: Instant? = null,
@@ -41,12 +45,28 @@ data class Execucao(
     val ativa: Boolean get() = status == StatusExecucao.PENDENTE || status == StatusExecucao.EXECUTANDO
 }
 
+/** O [UsuarioAutenticado] gravavel no Redis (sem as propriedades calculadas dele). */
+data class Solicitante(
+    val usuario: String,
+    val sapId: String,
+    val papeis: Set<String> = emptySet(),
+    val filiais: Set<Int> = emptySet(),
+    val tokenDeServico: Boolean = false,
+) {
+    fun paraUsuario() = UsuarioAutenticado(usuario, sapId, papeis, filiais, tokenDeServico)
+
+    companion object {
+        fun de(usuario: UsuarioAutenticado) =
+            Solicitante(usuario.usuario, usuario.sapId, usuario.papeis, usuario.filiais, usuario.tokenDeServico)
+    }
+}
+
 /** O mesmo envelope `erro`/`mensagem` da API, com o status HTTP que a rota sincrona daria. */
 data class FalhaExecucao(val status: Int, val erro: String, val mensagem: String)
 
 data class ArquivoExecucao(val nome: String, val contentType: String, val extensao: String, val tamanho: Long)
 
-/** O que a API devolve: sem logo, sem papeis e com o status ja resolvido (EXCLUIDO). */
+/** O que a API devolve: sem logo, sem solicitante e com o status ja resolvido (EXCLUIDO). */
 data class ExecucaoDto(
     val id: String,
     val tipo: TipoExecucao,

@@ -53,4 +53,18 @@ data class ReportProperties(
     val tokenMaxDias: Int = 90,
     /** Papel exigido para enviar, publicar e remover relatorios. */
     val authorRole: String = "admin",
-)
+    /**
+     * Schema do SAP de onde sai o cadastro de filiais do usuario (OHEM, HEM10, OSLP,
+     * `@RO_FILIAL_LINHA`, OBPL), conferido ao executar relatorio com parametro `filial`.
+     * Vazio = schema padrao da conexao do sap-odbc. Preencha se o sap-odbc tiver
+     * `allowed-schemas`: com a lista, ele recusa tabela sem schema.
+     */
+    val schemaCadastro: String? = null,
+) {
+    init {
+        // Entra no SQL como texto, entao so aceita identificador simples.
+        require(schemaCadastro.isNullOrBlank() || schemaCadastro.matches(Regex("[A-Za-z_][A-Za-z0-9_]*"))) {
+            "reports.schema-cadastro invalido: '$schemaCadastro'."
+        }
+    }
+}

@@ -8,10 +8,12 @@ import br.andrew.sap_reports.render.CsvRenderer
 import br.andrew.sap_reports.render.HtmlRenderer
 import br.andrew.sap_reports.render.PdfRenderer
 import br.andrew.sap_reports.repositorioDeTeste
+import br.andrew.sap_reports.web.AcessoRelatorioNegadoException
 import br.andrew.sap_reports.web.ParametrosInvalidosException
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertSame
 
 class RenderServiceTest {
     @Test
@@ -62,6 +64,7 @@ class RenderServiceTest {
         RenderService(
             repositorioDeTeste().first, DefinitionParser(), odbc, HtmlRenderer(), ReportProperties(),
             RenderEmDisco(odbc, HtmlRenderer(), PdfRenderer(), CsvRenderer(), ReportProperties()),
+            FiliaisDoUsuario(odbc, ReportProperties()),
         )
     }
 
@@ -82,5 +85,60 @@ class RenderServiceTest {
         assertEquals(mapOf("cliente" to "todos"), service.validarParametros(
             listOf(Parametro(nome = "cliente", padrao = "todos")), emptyMap(),
         ))
+    }
+
+    private val filiais = Parametro(nome = "filiais", tipo = "filial", multiplo = true)
+    private fun codigos(vararg valores: Int) = valores.map { it.toBigDecimal() }
+
+    @Test
+    fun `filiais fora do cadastro sao cortadas e a ordem pedida e mantida`() {
+        val params = mapOf("filiais" to codigos(2, 3, 4, 5), "outro" to "x")
+        val saida = service.restringirFiliais(listOf(filiais), params) { setOf(5, 3, 9) }
+        assertEquals(mapOf("filiais" to codigos(3, 5), "outro" to "x"), saida)
+    }
+
+    @Test
+    fun `nenhuma filial pedida no cadastro e recusada`() {
+        val erro = assertFailsWith<AcessoRelatorioNegadoException> {
+            service.restringirFiliais(listOf(filiais), mapOf("filiais" to codigos(2, 3))) { setOf(9) }
+        }
+        assertEquals("Nenhuma das filiais selecionadas esta liberada no seu cadastro.", erro.message)
+    }
+
+    @Test
+    fun `filial escalar fora do cadastro e recusada e dentro passa`() {
+        val filial = Parametro(nome = "filial", tipo = "filial")
+        assertEquals(
+            mapOf("filial" to 3.toBigDecimal()),
+            service.restringirFiliais(listOf(filial), mapOf("filial" to 3.toBigDecimal())) { setOf(3) },
+        )
+        assertFailsWith<AcessoRelatorioNegadoException> {
+            service.restringirFiliais(listOf(filial), mapOf("filial" to 2.toBigDecimal())) { setOf(3) }
+        }
+    }
+
+    @Test
+    fun `usuario sem filial no cadastro e recusado`() {
+        val erro = assertFailsWith<AcessoRelatorioNegadoException> {
+            service.restringirFiliais(listOf(filiais), mapOf("filiais" to codigos(2))) { emptySet() }
+        }
+        assertEquals("Seu usuario nao tem filial liberada no cadastro. Peca a liberacao ao administrador.", erro.message)
+    }
+
+    @Test
+    fun `quem ve todas as filiais recebe o pedido como esta`() {
+        val params = mapOf("filiais" to codigos(2, 3))
+        assertSame(params, service.restringirFiliais(listOf(filiais), params) { null })
+    }
+
+    @Test
+    fun `sem filial para conferir o cadastro nao e consultado`() {
+        val naoConsultar: () -> Set<Int>? = { error("nao deveria consultar o cadastro") }
+        val vendedor = Parametro(nome = "vendedor", tipo = "vendedor")
+        val params = mapOf("vendedor" to 7.toBigDecimal())
+        assertSame(params, service.restringirFiliais(listOf(vendedor), params, naoConsultar))
+
+        val opcional = mapOf("filiais" to null)
+        assertSame(opcional, service.restringirFiliais(listOf(filiais.copy(obrigatorio = false)), opcional, naoConsultar))
     }
 }

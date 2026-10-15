@@ -29,6 +29,7 @@ class AdminReportControllerTest {
         val renderService = RenderService(
             repository, DefinitionParser(), odbc, HtmlRenderer(), properties,
             br.andrew.sap_reports.service.RenderEmDisco(odbc, HtmlRenderer(), PdfRenderer(), CsvRenderer(), properties),
+            br.andrew.sap_reports.service.FiliaisDoUsuario(odbc, properties),
         )
         val execucoes = br.andrew.sap_reports.execucao.ExecucaoService(
             br.andrew.sap_reports.execucao.MemoriaExecucaoStore(), service, renderService,

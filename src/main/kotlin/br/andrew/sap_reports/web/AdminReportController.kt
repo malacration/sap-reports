@@ -1,5 +1,7 @@
 package br.andrew.sap_reports.web
 
+import br.andrew.sap_reports.execucao.ExecucaoService
+import br.andrew.sap_reports.security.UsuarioAutenticado
 import br.andrew.sap_reports.service.RenderService
 import br.andrew.sap_reports.service.ReportService
 import org.springframework.core.io.ClassPathResource
@@ -24,6 +26,7 @@ import org.springframework.http.HttpStatus
 class AdminReportController(
     private val reports: ReportService,
     private val renderer: RenderService,
+    private val execucoes: ExecucaoService,
 ) {
     @GetMapping("/relatorios")
     fun listar() = reports.listarAdmin()
@@ -77,6 +80,17 @@ class AdminReportController(
         @RequestBody request: RenderRequest,
         response: jakarta.servlet.http.HttpServletResponse,
     ) = enviar(id, renderer.preview(id, versao, formato, request.params, request.logo), response)
+
+    /** Previa assincrona: 202 com a execucao; acompanhe em `/execucoes/{id}`. */
+    @PostMapping("/relatorios/{id}/preview/execucoes")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    fun previewAssincrono(
+        @PathVariable id: Long,
+        @RequestParam(required = false) versao: Int?,
+        @RequestParam formato: String,
+        @RequestBody request: RenderRequest,
+        principal: Principal,
+    ) = execucoes.iniciarPreview(id, versao, formato, request, principal as UsuarioAutenticado)
 
     @PostMapping("/relatorios/{id}/publicar")
     fun publicar(

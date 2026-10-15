@@ -24,6 +24,15 @@ spring:
     enabled: true
     change-log: classpath:db/changelog/db.changelog-master.yaml
     default-schema: ${REPORTS_DB_SCHEMA:SAP_REPORTS}
+  # Fila e estado das execucoes assincronas de relatorio. Dependencia obrigatoria:
+  # sem Redis os relatorios nao sao gerados (as rotas sincronas continuam).
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      timeout: 5s
   servlet:
     multipart:
       max-file-size: 1MB
@@ -71,7 +80,10 @@ reports:
   # Atras de proxy o palpite automatico devolve o host interno - preencha em producao.
   public-url: ${REPORTS_PUBLIC_URL:}
   max-template-length: 200000
-  max-definition-length: 50000
+  # A definicao inclui o SQL: mantenha acima de max-sql-length.
+  max-definition-length: ${REPORTS_MAX_DEFINITION_LENGTH:150000}
+  # Igual ao query.max-sql-length do sap-odbc; se mudar la, mude aqui.
+  max-sql-length: ${REPORTS_MAX_SQL_LENGTH:100000}
   max-rows: 10000
   # PDF/CSV vem do sap-odbc em fluxo e sao montados em disco (ver RenderEmDisco).
   # max-rows-arquivo nao passa do query.stream-max-rows-limit do sap-odbc.
@@ -81,6 +93,14 @@ reports:
   diretorio-temporario: ${REPORTS_TMP_DIR:}   # vazio = temp do sistema; precisa de espaco em disco
   render-timeout-seconds: 120
   author-role: admin
+  execucao:
+    # Arquivos prontos. Em Docker, monte um volume aqui (senao somem ao recriar o conteiner).
+    diretorio: ${REPORTS_EXEC_DIR:}
+    # Execucoes simultaneas; nao passe do query.max-concurrent-streams do sap-odbc.
+    workers: ${REPORTS_EXEC_WORKERS:2}
+    retencao-horas: 24       # arquivo disponivel por 24h
+    historico-dias: 7        # depois disso some da lista; antes aparece como "excluido"
+    max-ativas-por-usuario: 5
   # Vazio aceita qualquer tabela que o sap-odbc permita. EM PRODUCAO, PREENCHA:
   # e o que impede um relatorio enviado de despejar uma tabela inteira.
   allowed-tables: []

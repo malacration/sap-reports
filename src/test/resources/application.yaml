@@ -23,6 +23,9 @@ odbc:
   api-key: "chave-de-teste"
 
 reports:
+  # Sem Redis nos testes: nenhum worker consome a fila.
+  execucao:
+    workers: 0
   allowed-tables:
     - SBOGRUPOROVEMA.OINV
     - SBOGRUPOROVEMA.OCRD

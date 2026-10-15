@@ -18,4 +18,11 @@ data class UsuarioAutenticado(
     val tokenDeServico: Boolean = false,
 ) : Principal {
     override fun getName(): String = usuario
+
+    /**
+     * Chave de posse das execucoes assincronas. Token de servico se chama
+     * `token:<nome>` e nomes se repetem entre pessoas; por isso entra quem o
+     * criou (o `sapId` do token e o `CRIADO_POR`).
+     */
+    val dono: String get() = if (tokenDeServico) "$usuario@$sapId" else usuario
 }

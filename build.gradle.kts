@@ -24,6 +24,8 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-actuator")
 	implementation("org.springframework.boot:spring-boot-starter-webmvc")
 	implementation("org.springframework.boot:spring-boot-starter-jdbc")
+	// Fila e estado das execucoes assincronas de relatorio (ver execucao/).
+	implementation("org.springframework.boot:spring-boot-starter-data-redis")
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
 	implementation("tools.jackson.module:jackson-module-kotlin")
 

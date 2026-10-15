@@ -17,7 +17,7 @@ decidir a correção, não o texto da mensagem.
 | `escape_desabilitado` | `{{{ }}}` ou `{{& }}` | trocar por `{{ }}` |
 | `tag_proibida` | `script`/`iframe`/`form`/…, `on*=`, `javascript:` | remover |
 | `recurso_externo_proibido` | `src`/`href`/`url()` apontando para fora | só `data:` URI |
-| `limite_excedido` | template/definição grandes demais, `maxRows` acima do teto | reduzir |
+| `limite_excedido` | template/definição grandes demais, SQL acima de 100.000 caracteres, `maxRows` acima do teto | reduzir |
 
 ## Por que cada proibição existe
 

@@ -13,7 +13,12 @@ data class ReportProperties(
     /** Tamanho maximo, em caracteres, do template Handlebars enviado. */
     val maxTemplateLength: Int = 200_000,
     /** Tamanho maximo, em caracteres, do YAML de definicao. */
-    val maxDefinitionLength: Int = 50_000,
+    val maxDefinitionLength: Int = 150_000,
+    /**
+     * Tamanho maximo, em caracteres, de `consulta.sql`. Espelha o `query.max-sql-length`
+     * do sap-odbc: sem isto um SQL maior era aceito e salvo, e so falhava ao executar.
+     */
+    val maxSqlLength: Int = 100_000,
     /** Teto de linhas que um relatorio pode pedir ao sap-odbc. */
     val maxRows: Int = 10_000,
     /**

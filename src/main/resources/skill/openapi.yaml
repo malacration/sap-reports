@@ -366,6 +366,140 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Erro' }
 
+  /api/v1/admin/relatorios/{id}/preview/execucoes:
+    post:
+      tags: [Autoria]
+      summary: Pede a previa de uma versao, em segundo plano
+      description: |
+        Responde 202 na hora com a execucao. Acompanhe em GET /api/v1/execucoes/{execucao}
+        ate CONCLUIDO ou FALHOU e baixe em /arquivo. Prefira esta a /preview: atras do
+        proxy, uma consulta demorada na rota sincrona e cortada.
+      parameters:
+        - $ref: '#/components/parameters/RelatorioId'
+        - name: versao
+          in: query
+          description: Se omitido, usa a ultima versao
+          schema: { type: integer, minimum: 1 }
+        - name: formato
+          in: query
+          required: true
+          schema: { type: string, enum: [pdf, html, csv] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RenderRequest' }
+      responses:
+        '202':
+          description: Execucao na fila
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Execucao' }
+        '401': { $ref: '#/components/responses/NaoAutorizado' }
+        '403': { $ref: '#/components/responses/Proibido' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+        '429':
+          description: Execucoes ativas demais para quem chama
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Erro' }
+
+  /api/v1/relatorios/{id}/execucoes:
+    post:
+      tags: [Consumo]
+      summary: Pede o render de um relatorio publicado, em segundo plano
+      description: Mesmo corpo de /render. Parametros e acesso sao conferidos aqui (400/404 imediatos).
+      parameters:
+        - $ref: '#/components/parameters/RelatorioId'
+        - name: formato
+          in: query
+          required: true
+          schema: { type: string, enum: [pdf, html, csv] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RenderRequest' }
+      responses:
+        '202':
+          description: Execucao na fila
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Execucao' }
+        '400':
+          description: Parametros ou formato invalidos
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Erro' }
+        '401': { $ref: '#/components/responses/NaoAutorizado' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+        '429':
+          description: Execucoes ativas demais para quem chama
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Erro' }
+
+  /api/v1/execucoes:
+    get:
+      tags: [Consumo]
+      summary: Execucoes de quem chama, mais recentes primeiro
+      responses:
+        '200':
+          description: Lista
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Execucao' }
+        '401': { $ref: '#/components/responses/NaoAutorizado' }
+
+  /api/v1/execucoes/{execucao}:
+    get:
+      tags: [Consumo]
+      summary: Estado de uma execucao
+      parameters:
+        - name: execucao
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Execucao
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Execucao' }
+        '401': { $ref: '#/components/responses/NaoAutorizado' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+
+  /api/v1/execucoes/{execucao}/arquivo:
+    get:
+      tags: [Consumo]
+      summary: Arquivo de uma execucao concluida
+      parameters:
+        - name: execucao
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Relatorio gerado
+          content:
+            application/pdf: { schema: { type: string, format: binary } }
+            text/html: { schema: { type: string } }
+            text/csv: { schema: { type: string } }
+        '401': { $ref: '#/components/responses/NaoAutorizado' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+        '409':
+          description: Ainda em execucao, ou falhou
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Erro' }
+        '410':
+          description: Arquivo excluido apos a retencao (24h). Gere novamente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Erro' }
+
   /api/v1/admin/relatorios/{id}/publicar:
     post:
       tags: [Autoria]
@@ -571,7 +705,7 @@ components:
         id: { type: integer, format: int64, example: 12, description: Gerado pelo banco }
         nome: { type: string, example: Vendas por cliente, description: Titulo; nao e unico }
         descricao: { type: string, nullable: true }
-        pasta: { type: string, nullable: true, example: Financeiro/Contas a pagar, description: Pasta da listagem, 'Area' ou 'Area/Assunto' (ate 2 niveis, separados por '/'); ausente = Sem pasta }
+        pasta: { type: string, nullable: true, example: Financeiro/Contas a pagar, description: "Pasta da listagem, 'Area' ou 'Area/Assunto' (ate 2 niveis, separados por '/'); ausente = Sem pasta" }
         formatos:
           type: array
           items: { type: string, enum: [pdf, html, csv] }
@@ -598,7 +732,7 @@ components:
         id: { type: integer, format: int64 }
         nome: { type: string }
         descricao: { type: string, nullable: true }
-        pasta: { type: string, nullable: true, description: Pasta da ultima versao, 'Area' ou 'Area/Assunto' (ate 2 niveis) }
+        pasta: { type: string, nullable: true, description: "Pasta da ultima versao, 'Area' ou 'Area/Assunto' (ate 2 niveis)" }
         status:
           type: string
           enum: [RASCUNHO, PUBLICADO]
@@ -681,6 +815,39 @@ components:
           enum: [esquerda, centro, direita]
           nullable: true
 
+    Execucao:
+      type: object
+      properties:
+        id: { type: string }
+        tipo: { type: string, enum: [RENDER, PREVIEW] }
+        relatorioId: { type: integer }
+        relatorioNome: { type: string }
+        versao: { type: integer, nullable: true }
+        formato: { type: string, enum: [pdf, html, csv] }
+        params: { type: object, additionalProperties: true }
+        status:
+          type: string
+          enum: [PENDENTE, EXECUTANDO, CONCLUIDO, FALHOU, EXCLUIDO]
+          description: EXCLUIDO = concluiu, mas o arquivo ja foi apagado (retencao de 24h)
+        criadoEm: { type: string, format: date-time }
+        iniciadoEm: { type: string, format: date-time, nullable: true }
+        concluidoEm: { type: string, format: date-time, nullable: true }
+        expiraEm: { type: string, format: date-time, nullable: true }
+        erro:
+          type: object
+          nullable: true
+          properties:
+            status: { type: integer, description: Status HTTP que a rota sincrona daria }
+            erro: { type: string }
+            mensagem: { type: string }
+        arquivo:
+          type: object
+          nullable: true
+          properties:
+            nome: { type: string }
+            contentType: { type: string }
+            extensao: { type: string }
+            tamanho: { type: integer }
     RenderRequest:
       type: object
       required: [params]

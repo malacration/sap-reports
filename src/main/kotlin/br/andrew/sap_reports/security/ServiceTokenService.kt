@@ -18,6 +18,9 @@ import java.util.UUID
  *  - expiracao OBRIGATORIA, com teto configuravel. Credencial de maquina
  *    esquecida e o risco mais comum desse tipo de token;
  *  - revogavel a qualquer momento;
+ *  - cada usuario enxerga e revoga SO os tokens que ele mesmo gerou. O dono e
+ *    o `CRIADO_POR`; o filtro fica no SQL, e nao na tela, para que o id de um
+ *    token alheio nao sirva para nada;
  *  - registra o ultimo uso, para descobrir token ativo e esquecido.
  */
 @Service
@@ -94,10 +97,11 @@ open class ServiceTokenService(
         )
     }
 
-    fun listar(): List<TokenResumo> = jdbc.queryForList(
+    /** Somente os tokens gerados por [criadoPor]. */
+    fun listar(criadoPor: String): List<TokenResumo> = jdbc.queryForList(
         """SELECT ID, NOME, PREFIXO, CRIADO_POR, CRIADO_EM, EXPIRA_EM, REVOGADO_EM, ULTIMO_USO
-           FROM RELATORIO_TOKEN ORDER BY CRIADO_EM DESC""",
-        emptyMap<String, Any>(),
+           FROM RELATORIO_TOKEN WHERE CRIADO_POR = :criadoPor ORDER BY CRIADO_EM DESC""",
+        mapOf("criadoPor" to criadoPor),
     ).map { l ->
         TokenResumo(
             id = l["ID"].toString(), nome = l["NOME"].toString(), prefixo = l["PREFIXO"].toString(),
@@ -109,9 +113,14 @@ open class ServiceTokenService(
         )
     }
 
-    fun revogar(id: String): Boolean = jdbc.update(
-        "UPDATE RELATORIO_TOKEN SET REVOGADO_EM = :agora WHERE ID = :id AND REVOGADO_EM IS NULL",
-        mapOf("agora" to LocalDateTime.now(), "id" to id),
+    /**
+     * Revoga um token de [criadoPor]. Token de outra pessoa devolve false, igual
+     * a token inexistente: a resposta nao confirma que o id existe.
+     */
+    fun revogar(id: String, criadoPor: String): Boolean = jdbc.update(
+        """UPDATE RELATORIO_TOKEN SET REVOGADO_EM = :agora
+           WHERE ID = :id AND CRIADO_POR = :criadoPor AND REVOGADO_EM IS NULL""",
+        mapOf("agora" to LocalDateTime.now(), "id" to id, "criadoPor" to criadoPor),
     ) > 0
 
     private fun hash(valor: String): String =

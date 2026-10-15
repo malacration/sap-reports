@@ -13,8 +13,8 @@ import java.util.zip.ZipOutputStream
  * versao da API IMPLANTADA. Documentacao de API que mora noutro projeto
  * diverge - e documentacao de API errada faz a IA gerar chamada errada.
  *
- * O pacote tem duas pastas porque as duas ferramentas funcionam de forma
- * diferente:
+ * O pacote tem tres pastas porque as ferramentas funcionam de forma diferente:
+ *  - `mcp/` explica como ligar um cliente MCP ao [McpController];
  *  - `claude/` e uma skill de verdade (SKILL.md com frontmatter);
  *  - `chatgpt/` traz Instructions + OpenAPI para um GPT personalizado com Action.
  */
@@ -109,7 +109,12 @@ class SkillPackageService {
     private fun leiaMe() = """
         # Instruções para IA — sap-reports
 
-        Duas pastas, porque as ferramentas funcionam de forma diferente:
+        Três pastas, porque as ferramentas funcionam de forma diferente:
+
+        ## mcp/
+        Servidor MCP do próprio `sap-reports`: as operações chegam à IA como
+        ferramentas, sem `curl`. É o caminho mais simples para qualquer cliente
+        MCP. Siga `mcp/COMO-CONFIGURAR.md`.
 
         ## claude/
         Skill do Claude Code. Instale com:
@@ -126,7 +131,8 @@ class SkillPackageService {
 
         ## Token
 
-        Os dois usam um token de serviço gerado na tela de relatórios. Ele cria
+        Todos usam um token de serviço gerado na tela de relatórios — cada pessoa
+        vê e revoga apenas os tokens que ela mesma gerou. Ele cria
         rascunho, valida e pré-visualiza — **não publica**. Publicar decide quem
         enxerga faturamento, e continua sendo decisão de uma pessoa.
     """.trimIndent()

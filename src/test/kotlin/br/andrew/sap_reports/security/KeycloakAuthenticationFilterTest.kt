@@ -22,6 +22,21 @@ class KeycloakAuthenticationFilterTest {
     }
 
     @Test
+    fun `servidor MCP exige autenticacao e papel de autoria, e aceita token de servico`() {
+        fun status(usuario: UsuarioAutenticado, comToken: Boolean = true): Int {
+            val request = MockHttpServletRequest("POST", "/api/v1/admin/mcp").apply {
+                if (comToken) addHeader("Authorization", "Bearer token-valido")
+            }
+            val response = MockHttpServletResponse()
+            filtro(usuario).doFilter(request, response, MockFilterChain())
+            return response.status
+        }
+        assertEquals(401, status(UsuarioAutenticado("ana", "10", setOf("admin"), emptySet()), comToken = false))
+        assertEquals(403, status(UsuarioAutenticado("ana", "10", setOf("vendedor"), emptySet())))
+        assertEquals(200, status(UsuarioAutenticado("token:gpt", "ana", setOf("admin"), emptySet(), true)))
+    }
+
+    @Test
     fun `context path e segmentos codificados nao contornam autenticacao`() {
         listOf("/reports/api/v1/relatorios", "/api;v=1/v1/relatorios", "/%61pi/v1/relatorios").forEach { uri ->
             val request = MockHttpServletRequest("GET", uri).apply {

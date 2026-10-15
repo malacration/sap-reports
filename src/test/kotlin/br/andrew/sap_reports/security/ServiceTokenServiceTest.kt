@@ -65,7 +65,7 @@ class ServiceTokenServiceTest {
     @Test
     fun `token revogado deixa de autenticar na hora`() {
         val criado = service.criar("gpt", 30, "andrew")
-        assertTrue(service.revogar(criado.id))
+        assertTrue(service.revogar(criado.id, "andrew"))
         assertNull(service.autenticar(criado.valor), "revogacao precisa valer imediatamente")
     }
 
@@ -106,15 +106,34 @@ class ServiceTokenServiceTest {
     @Test
     fun `o uso e registrado para descobrir token esquecido`() {
         val criado = service.criar("gpt", 30, "andrew")
-        assertNull(service.listar().first().ultimoUso)
+        assertNull(service.listar("andrew").first().ultimoUso)
         service.autenticar(criado.valor)
-        assertNotNull(service.listar().first().ultimoUso)
+        assertNotNull(service.listar("andrew").first().ultimoUso)
     }
 
     @Test
     fun `revogar duas vezes devolve false na segunda`() {
         val criado = service.criar("gpt", 30, "andrew")
-        assertTrue(service.revogar(criado.id))
-        assertFalse(service.revogar(criado.id))
+        assertTrue(service.revogar(criado.id, "andrew"))
+        assertFalse(service.revogar(criado.id, "andrew"))
+    }
+
+    @Test
+    fun `cada usuario lista so os tokens que gerou`() {
+        service.criar("gpt da ana", 30, "ana")
+        service.criar("gpt do andrew", 30, "andrew")
+
+        assertEquals(listOf("gpt da ana"), service.listar("ana").map { it.nome })
+        assertEquals(listOf("gpt do andrew"), service.listar("andrew").map { it.nome })
+        assertTrue(service.listar("bia").isEmpty())
+    }
+
+    @Test
+    fun `ninguem revoga o token de outra pessoa`() {
+        val criado = service.criar("gpt da ana", 30, "ana")
+
+        assertFalse(service.revogar(criado.id, "andrew"), "id alheio nao pode revogar")
+        assertNotNull(service.autenticar(criado.valor), "o token da ana continua valendo")
+        assertTrue(service.revogar(criado.id, "ana"))
     }
 }

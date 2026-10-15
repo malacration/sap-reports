@@ -11,9 +11,16 @@ Um relatório são **dois arquivos de texto**: um `.yaml` (consulta e metadados)
 2. POST /api/v1/admin/relatorios/validar  valida SEM gravar
 3.      422 → corrija e volte ao passo 2  (repita até passar)
 4. POST /api/v1/admin/relatorios          cria o rascunho → a resposta traz o `id` (número)
-5. POST /api/v1/admin/relatorios/{id}/preview?formato=html   confira o resultado
-6.      publicar é decisão HUMANA — veja "Limites" no fim
+5. POST /api/v1/admin/relatorios/{id}/preview/execucoes?formato=html  → 202 com o `id` da execução
+6. GET  /api/v1/execucoes/{execucao}      repita a cada ~3s até `status` CONCLUIDO ou FALHOU
+7. GET  /api/v1/execucoes/{execucao}/arquivo                confira o resultado
+8.      publicar é decisão HUMANA — veja "Limites" no fim
 ```
+
+A prévia é **assíncrona**: o proxy na frente da API corta requisição demorada, e a
+consulta pode levar minutos. `FALHOU` traz `erro.erro`/`erro.mensagem` com os mesmos
+códigos da tabela de erros. A rota síncrona `/preview` ainda existe, mas atrás do
+proxy uma consulta lenta é cortada no meio — use a assíncrona.
 
 **Nunca pule o passo 2.** Ele não grava nada e devolve *todos* os erros de uma vez.
 Mandar direto para o passo 4 desperdiça tentativa e suja o histórico de versões.

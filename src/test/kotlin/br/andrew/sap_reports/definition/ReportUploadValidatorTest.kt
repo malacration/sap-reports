@@ -194,6 +194,14 @@ class ReportUploadValidatorTest {
         assertTrue(r.problemas.any { it.regra == Regra.LIMITE_EXCEDIDO })
     }
 
+    @Test
+    fun `recusa SQL maior que o limite do sap-odbc`() {
+        val v = ReportUploadValidator(ReportProperties(maxSqlLength = 80))
+        val sql = "SELECT T0.CardCode FROM SBOGRUPOROVEMA.OINV T0 WHERE T0.DocDate >= :dataInicio AND T0.DocTotal > 0"
+        val r = v.validar(definicao(sql = sql), templateOk)
+        assertTrue(r.problemas.any { it.regra == Regra.LIMITE_EXCEDIDO && it.caminho == "consulta.sql" }, r.problemas.toString())
+    }
+
     // ---------- Estrutura ----------
 
     @Test

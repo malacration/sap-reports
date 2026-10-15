@@ -27,6 +27,15 @@ casos a resposta é 403, por desenho.
 Autoria (`/admin/**`) exige o papel `admin` — ou um token de serviço, dentro dos
 limites acima.
 
+A tela de tokens lista só os tokens de quem está logado; revogar o de outra
+pessoa devolve 404.
+
+## Servidor MCP
+
+`POST /admin/mcp` expõe as rotas de autoria abaixo como ferramentas MCP (Streamable
+HTTP, mesmo token). Com um cliente MCP configurado, prefira as ferramentas ao `curl`.
+Publicar, rollback e remover não existem no MCP.
+
 ## Descoberta
 
 | Método | Rota | Para que |
@@ -45,7 +54,8 @@ limites acima.
 | `PUT` | `/admin/relatorios/{id}` | nova versão (rascunho) |
 | `GET` | `/admin/relatorios` | lista todos, inclusive rascunhos |
 | `GET` | `/admin/relatorios/{id}?versao=N` | devolve `definicao` e `template` em texto |
-| `POST` | `/admin/relatorios/{id}/preview?formato=html\|pdf\|csv` | renderiza sem publicar |
+| `POST` | `/admin/relatorios/{id}/preview/execucoes?formato=html\|pdf\|csv` | prévia **assíncrona** (202) — use esta |
+| `POST` | `/admin/relatorios/{id}/preview?formato=html\|pdf\|csv` | prévia síncrona; atrás do proxy, consulta lenta é cortada |
 | `POST` | `/admin/relatorios/{id}/publicar` | corpo `{"versao": N}` |
 | `GET` | `/admin/relatorios/{id}/versoes` | histórico |
 | `POST` | `/admin/relatorios/{id}/rollback/{versao}` | move o ponteiro de volta |
@@ -86,6 +96,25 @@ Os seletores usam APIs existentes do portal, não há endpoint novo de SQL de op
 | `GET` | `/relatorios` — lista os publicados visíveis ao usuário |
 | `GET` | `/relatorios/{id}` — metadados e spec de parâmetros |
 | `POST` | `/relatorios/{id}/render?formato=pdf\|html\|csv` |
+
+## Execuções assíncronas
+
+Render e prévia rodam em segundo plano: o pedido responde **202** na hora, com a
+execução; o arquivo sai depois. O estado fica no servidor (Redis), então quem
+recarrega a página — ou volta horas depois — encontra as próprias execuções.
+
+| Método | Rota | O que faz |
+| --- | --- | --- |
+| `POST` | `/relatorios/{id}/execucoes?formato=` | pede o render de um publicado (corpo igual ao `/render`) |
+| `POST` | `/admin/relatorios/{id}/preview/execucoes?formato=&versao=` | pede a prévia |
+| `GET` | `/execucoes` | as execuções de quem chama, mais recentes primeiro |
+| `GET` | `/execucoes/{execucao}` | estado: `PENDENTE`, `EXECUTANDO`, `CONCLUIDO`, `FALHOU`, `EXCLUIDO` |
+| `GET` | `/execucoes/{execucao}/arquivo` | o arquivo; **410** `execucao_excluida` depois de 24h |
+| `DELETE` | `/execucoes/{execucao}` | tira da lista (não vale para token de serviço) |
+
+Parâmetros, formato e acesso são conferidos **no pedido** (400/404 imediatos). Erro
+da consulta aparece depois, em `erro` da execução, com o mesmo `status`/`erro` que a
+rota síncrona daria. Cada um vê só as próprias execuções; até 5 ativas por vez (429).
 
 ## Códigos de erro
 

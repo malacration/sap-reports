@@ -30,7 +30,11 @@ class AdminReportControllerTest {
             repository, DefinitionParser(), odbc, HtmlRenderer(), properties,
             br.andrew.sap_reports.service.RenderEmDisco(odbc, HtmlRenderer(), PdfRenderer(), CsvRenderer(), properties),
         )
-        val controller = AdminReportController(service, renderService)
+        val execucoes = br.andrew.sap_reports.execucao.ExecucaoService(
+            br.andrew.sap_reports.execucao.MemoriaExecucaoStore(), service, renderService,
+            br.andrew.sap_reports.execucao.ExecucaoProperties(), java.time.Clock.systemUTC(),
+        )
+        val controller = AdminReportController(service, renderService, execucoes)
         val mvc = MockMvcBuilders.standaloneSetup(controller)
             .setControllerAdvice(ApiExceptionHandler())
             .build()

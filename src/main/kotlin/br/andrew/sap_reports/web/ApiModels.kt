@@ -118,8 +118,11 @@ class SaidaRenderizada private constructor(
     }
 
     companion object {
-        /** [arquivo] fica dentro de [temporario], que e apagado inteiro no [close]. */
-        fun deArquivo(arquivo: java.nio.file.Path, contentType: String, extensao: String, temporario: java.nio.file.Path) =
+        /**
+         * [arquivo] fica dentro de [temporario], que e apagado inteiro no [close].
+         * Sem [temporario] o arquivo e preservado (execucao assincrona, apagada pela retencao).
+         */
+        fun deArquivo(arquivo: java.nio.file.Path, contentType: String, extensao: String, temporario: java.nio.file.Path? = null) =
             SaidaRenderizada(contentType, extensao, null, arquivo, temporario)
 
         fun apagarDiretorio(diretorio: java.nio.file.Path) {

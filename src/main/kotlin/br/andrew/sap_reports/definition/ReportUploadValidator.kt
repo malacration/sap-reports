@@ -280,6 +280,10 @@ class ReportUploadValidator(private val props: ReportProperties) {
             p += Problema("consulta.sql", Regra.SQL_MULTIPLAS_INSTRUCOES,
                 "Mais de uma instrucao. Apenas uma consulta por relatorio.")
         }
+        if (sql.length > props.maxSqlLength) {
+            p += Problema("consulta.sql", Regra.LIMITE_EXCEDIDO,
+                "SQL com ${sql.length} caracteres excede o limite de ${props.maxSqlLength} do sap-odbc.")
+        }
         if (!SqlRules.comecaComSelect(sql)) {
             p += Problema("consulta.sql", Regra.SQL_NAO_E_SELECT,
                 "A consulta deve comecar com SELECT ou WITH.")

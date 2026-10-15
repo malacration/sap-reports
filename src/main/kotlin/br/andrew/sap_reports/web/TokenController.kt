@@ -15,6 +15,8 @@ import java.time.LocalDateTime
  * So papel de autoria acessa, e um token de servico NAO consegue chegar aqui
  * (ver ROTAS_PROIBIDAS_AO_TOKEN no filtro) - senao um token emitiria outro e a
  * expiracao deixaria de significar alguma coisa.
+ *
+ * Cada usuario ve e revoga apenas os tokens que ele mesmo gerou.
  */
 @RestController
 @RequestMapping("/api/v1/admin/tokens")
@@ -28,8 +30,7 @@ class TokenController(private val service: ServiceTokenService) {
      */
     @PostMapping
     fun criar(request: HttpServletRequest, @RequestBody corpo: NovoToken): ResponseEntity<Any> {
-        val usuario = request.getAttribute(KeycloakAuthenticationFilter.USUARIO_ATTRIBUTE) as? UsuarioAutenticado
-            ?: return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
+        val usuario = usuario(request) ?: return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
         return try {
             val criado = service.criar(corpo.nome, corpo.diasValidade, usuario.usuario)
             ResponseEntity.status(HttpStatus.CREATED).body(
@@ -47,20 +48,28 @@ class TokenController(private val service: ServiceTokenService) {
     }
 
     @GetMapping
-    fun listar() = service.listar().map {
-        mapOf(
-            "id" to it.id, "nome" to it.nome, "prefixo" to it.prefixo,
-            "criadoPor" to it.criadoPor, "criadoEm" to it.criadoEm,
-            "expiraEm" to it.expiraEm, "revogadoEm" to it.revogadoEm,
-            "ultimoUso" to it.ultimoUso, "ativo" to it.ativo,
-            // Ajuda a tela a destacar o que precisa de atencao.
-            "expirado" to it.expiraEm.isBefore(LocalDateTime.now()),
-        )
+    fun listar(request: HttpServletRequest): ResponseEntity<Any> {
+        val usuario = usuario(request) ?: return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
+        return ResponseEntity.ok(service.listar(usuario.usuario).map { it.resumo() })
     }
 
     @DeleteMapping("/{id}")
-    fun revogar(@PathVariable id: String): ResponseEntity<Any> =
-        if (service.revogar(id)) ResponseEntity.noContent().build()
+    fun revogar(request: HttpServletRequest, @PathVariable id: String): ResponseEntity<Any> {
+        val usuario = usuario(request) ?: return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
+        return if (service.revogar(id, usuario.usuario)) ResponseEntity.noContent().build()
         else ResponseEntity.status(HttpStatus.NOT_FOUND)
             .body(mapOf("erro" to "nao_encontrado", "mensagem" to "Token inexistente ou ja revogado."))
+    }
+
+    private fun usuario(request: HttpServletRequest) =
+        request.getAttribute(KeycloakAuthenticationFilter.USUARIO_ATTRIBUTE) as? UsuarioAutenticado
+
+    private fun ServiceTokenService.TokenResumo.resumo() = mapOf(
+        "id" to id, "nome" to nome, "prefixo" to prefixo,
+        "criadoPor" to criadoPor, "criadoEm" to criadoEm,
+        "expiraEm" to expiraEm, "revogadoEm" to revogadoEm,
+        "ultimoUso" to ultimoUso, "ativo" to ativo,
+        // Ajuda a tela a destacar o que precisa de atencao.
+        "expirado" to expiraEm.isBefore(LocalDateTime.now()),
+    )
 }

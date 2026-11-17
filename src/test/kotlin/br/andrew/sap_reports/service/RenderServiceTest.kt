@@ -18,7 +18,7 @@ import kotlin.test.assertSame
 class RenderServiceTest {
     @Test
     fun `cadastros numericos aceitam codigos inteiros e arrays sem interpolacao`() {
-        for (tipo in listOf("filial", "vendedor")) {
+        for (tipo in listOf("filial", "vendedor", "condicao_pagamento", "grupo_item")) {
             val param = Parametro(nome = "codigo", tipo = tipo)
             assertEquals(2.toBigDecimal(), service.validarParametros(listOf(param), mapOf("codigo" to 2))["codigo"])
             assertEquals(listOf(2.toBigDecimal(), 3.toBigDecimal()), service.validarParametros(
@@ -32,7 +32,7 @@ class RenderServiceTest {
 
     @Test
     fun `cadastros textuais preservam codigos e rejeitam objetos`() {
-        for (tipo in listOf("parceiro_negocio", "item", "localidade")) {
+        for (tipo in listOf("parceiro_negocio", "item", "localidade", "fornecedor", "conta_contabil", "centro_custo", "deposito")) {
             val param = Parametro(nome = "codigo", tipo = tipo, multiplo = true)
             assertEquals(listOf("001", "A'B"), service.validarParametros(listOf(param), mapOf("codigo" to listOf("001", "A'B")))["codigo"])
             for (valor in listOf(emptyList<Any>(), listOf(null), listOf("001", 2), listOf(""), "001", listOf(listOf("001")))) {

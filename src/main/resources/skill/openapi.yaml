@@ -773,13 +773,15 @@ components:
         nome: { type: string, pattern: '^[A-Za-z][A-Za-z0-9_]{0,63}$', example: dataInicio }
         tipo:
           type: string
-          enum: [texto, numero, date, datetime, booleano, lista, filial, vendedor, parceiro_negocio, item, localidade]
+          enum: [texto, numero, date, datetime, booleano, lista, filial, vendedor, parceiro_negocio, item, localidade, fornecedor, conta_contabil, centro_custo, condicao_pagamento, grupo_item, deposito]
           description: |
             Determina o componente no formulario:
             texto->input | numero->input number | date->datepicker |
             datetime->datetime picker | booleano->checkbox | lista->select (usa `opcoes`)
             filial->Bplid/BPLID inteiro | vendedor->SalesEmployeeCode inteiro (SlpCode) |
             parceiro_negocio->CardCode texto | item->ItemCode texto | localidade->Code texto.
+            fornecedor->CardCode texto | conta_contabil->AcctCode texto | centro_custo->PrcCode texto |
+            condicao_pagamento->GroupNum inteiro (-1 = A vista) | grupo_item->ItmsGrpCod inteiro | deposito->WhsCode texto.
             Somente cadastros existentes, sem SQL ou URL de busca configurável.
         multiplo:
           type: boolean

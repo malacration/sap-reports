@@ -7,6 +7,7 @@ import org.springframework.mock.web.MockHttpServletRequest
 import org.springframework.mock.web.MockHttpServletResponse
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class KeycloakAuthenticationFilterTest {
@@ -19,6 +20,49 @@ class KeycloakAuthenticationFilterTest {
         val response = MockHttpServletResponse()
         filter.doFilter(request, response, MockFilterChain())
         assertEquals(403, response.status)
+    }
+
+    @Test
+    fun `token de servico nao usa a busca de cadastros dos filtros`() {
+        fun status(usuario: UsuarioAutenticado): Int {
+            val request = MockHttpServletRequest("GET", "/api/v1/relatorios/cadastros/item").apply {
+                addHeader("Authorization", "Bearer token-valido")
+            }
+            val response = MockHttpServletResponse()
+            filtro(usuario).doFilter(request, response, MockFilterChain())
+            return response.status
+        }
+        assertEquals(403, status(UsuarioAutenticado("token:gpt", "ana", setOf("admin"), emptySet(), true)))
+        assertEquals(200, status(UsuarioAutenticado("ana", "10", setOf("vendedor"), emptySet())))
+    }
+
+    @Test
+    fun `403 da busca de cadastros nao manda o token criar rascunho`() {
+        fun mensagem(caminho: String): String {
+            val request = MockHttpServletRequest("GET", caminho).apply {
+                addHeader("Authorization", "Bearer token-valido")
+            }
+            val response = MockHttpServletResponse()
+            filtro(UsuarioAutenticado("token:gpt", "ana", setOf("admin"), emptySet(), true))
+                .doFilter(request, response, MockFilterChain())
+            assertEquals(403, response.status)
+            return response.contentAsString
+        }
+        val cadastros = mensagem("/api/v1/relatorios/cadastros/item")
+        assertTrue(cadastros.contains("Busca de cadastros"), cadastros)
+        assertFalse(cadastros.contains("rascunho"), cadastros)
+        assertTrue(mensagem("/api/v1/admin/relatorios/vendas/publicar").contains("rascunho"))
+    }
+
+    @Test
+    fun `token de servico continua lendo relatorio por id`() {
+        val request = MockHttpServletRequest("GET", "/api/v1/relatorios/5").apply {
+            addHeader("Authorization", "Bearer token-valido")
+        }
+        val response = MockHttpServletResponse()
+        filtro(UsuarioAutenticado("token:gpt", "ana", setOf("admin"), emptySet(), true))
+            .doFilter(request, response, MockFilterChain())
+        assertEquals(200, response.status)
     }
 
     @Test

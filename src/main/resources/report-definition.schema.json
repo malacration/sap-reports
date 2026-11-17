@@ -128,13 +128,13 @@
       "allOf": [{
         "if": { "required": ["multiplo"], "properties": { "multiplo": { "const": true } } },
         "then": { "properties": {
-          "tipo": { "enum": ["lista", "filial", "vendedor", "parceiro_negocio", "item", "localidade"] },
+          "tipo": { "enum": ["lista", "filial", "vendedor", "parceiro_negocio", "item", "localidade", "fornecedor", "conta_contabil", "centro_custo", "condicao_pagamento", "grupo_item", "deposito"] },
           "padrao": { "type": ["array", "null"], "minItems": 1 }
         } }
       }],
       "properties": {
         "nome": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$" },
-        "tipo": { "enum": ["texto", "numero", "date", "datetime", "booleano", "lista", "filial", "vendedor", "parceiro_negocio", "item", "localidade"] },
+        "tipo": { "enum": ["texto", "numero", "date", "datetime", "booleano", "lista", "filial", "vendedor", "parceiro_negocio", "item", "localidade", "fornecedor", "conta_contabil", "centro_custo", "condicao_pagamento", "grupo_item", "deposito"] },
         "multiplo": { "type": "boolean", "default": false, "description": "Selecao multipla para lista e cadastros. Enviar array nao vazio de codigos; opcional sem selecao envia null." },
         "rotulo": { "type": ["string", "null"] },
         "obrigatorio": { "type": "boolean", "default": true },

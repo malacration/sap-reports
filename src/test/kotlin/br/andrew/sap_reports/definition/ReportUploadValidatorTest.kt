@@ -137,7 +137,10 @@ class ReportUploadValidatorTest {
 
     @Test
     fun `cadastros existentes aceitam selecao unica e multipla`() {
-        for (tipo in listOf("filial", "vendedor", "parceiro_negocio", "item", "localidade")) {
+        for (tipo in listOf(
+            "filial", "vendedor", "parceiro_negocio", "item", "localidade", "fornecedor", "conta_contabil",
+            "centro_custo", "condicao_pagamento", "grupo_item", "deposito",
+        )) {
             val def = definicao(sql = "SELECT CardCode FROM SBOGRUPOROVEMA.OINV WHERE CardCode IN (:codigo)", parametros = listOf("codigo" to tipo))
             aceito(def)
             aceito(def.replace("obrigatorio: true", "obrigatorio: true\n    multiplo: true"))

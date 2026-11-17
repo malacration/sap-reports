@@ -75,8 +75,12 @@ class KeycloakAuthenticationFilter(
                 response,
                 403,
                 "proibido",
-                "Token de servico nao pode publicar, remover nem gerenciar tokens. " +
-                    "Crie o rascunho e peca a uma pessoa para publicar.",
+                if (caminho.contains(ROTA_CADASTROS)) {
+                    "Busca de cadastros é exclusiva dos filtros de relatório no portal."
+                } else {
+                    "Token de servico nao pode publicar, remover nem gerenciar tokens. " +
+                        "Crie o rascunho e peca a uma pessoa para publicar."
+                },
             )
             return
         }
@@ -127,8 +131,11 @@ class KeycloakAuthenticationFilter(
         /**
          * Rotas que token de servico NAO acessa, mesmo herdando o papel de autor.
          * Publicar decide quem enxerga faturamento; gerenciar tokens permitiria a
-         * um token emitir outro, sem prazo, driblando a expiracao.
+         * um token emitir outro, sem prazo, driblando a expiracao. A busca de
+         * cadastros e exclusiva dos filtros de relatorio de uma pessoa (LGPD:
+         * CPF/CNPJ -> nome); a IA consulta codigos pelo preview.
          */
-        val ROTAS_PROIBIDAS_AO_TOKEN = listOf("/publicar", "/rollback/", "/tokens")
+        private const val ROTA_CADASTROS = "/api/v1/relatorios/cadastros/"
+        val ROTAS_PROIBIDAS_AO_TOKEN = listOf("/publicar", "/rollback/", "/tokens", ROTA_CADASTROS)
     }
 }

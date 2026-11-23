@@ -88,7 +88,7 @@ class CadastrosRelatorioTest {
         servidor.verify(
             postRequestedFor(urlEqualTo("/api/v1/query"))
                 .withRequestBody(matchingJsonPath("$.sql", equalTo(cadastros.sql("parceiro_negocio"))))
-                .withRequestBody(matchingJsonPath("$.params.termo", equalTo("%O'BRIEN_%%"))),
+                .withRequestBody(matchingJsonPath("$.params.termo", equalTo("%O'BRIEN\\_\\%%"))),
         )
     }
 
@@ -113,12 +113,60 @@ class CadastrosRelatorioTest {
         assertTrue("validFor" !in assertNotNull(cadastros.sql("item")))
 
     @Test
-    fun `cnpj so com digitos vira mascara`() =
-        assertEquals("%12.345.678/0001-90%", cadastros.termo("12345678000190"))
+    fun `underscore percent e barra nao sao coringa`() {
+        assertEquals("%1\\_\\%\\\\%", cadastros.termo("1_%\\"))
+        assertEquals("%A\\_B%C%", cadastros.termo("a_b*c"))
+        assertEquals("1\\_\\_%", cadastros.prefixo("1__"))
+        assertTrue(assertNotNull(cadastros.sql("item")).split("LIKE").drop(1).all { it.startsWith(" :") && "ESCAPE '\\'" in it })
+    }
 
     @Test
-    fun `cpf so com digitos vira mascara`() =
-        assertEquals("%123.456.789-01%", cadastros.termo("12345678901"))
+    fun `cpf parcial nao consulta documento nem usa LIKE nele`() {
+        responder()
+        cadastros.buscar("parceiro_negocio", "123.456.___-__")
+        cadastros.buscar("parceiro_negocio", "1234567890")
+        servidor.verify(2, postRequestedFor(urlEqualTo("/api/v1/query"))
+            .withRequestBody(not(matchingJsonPath("$.params.doc")))
+            .withRequestBody(matchingJsonPath("$.sql", notContaining("TaxId"))))
+    }
+
+    /** Só responde se o SQL tem o grupo OR exato (nome + 4 igualdades) e os parâmetros esperados; senão 404 e o teste falha. */
+    private fun responderSoSe(tipo: Char, colunas: List<String>, doc: String, mascara: String, vararg linhas: String) {
+        val busca = listOf("""UPPER(T."CardCode") LIKE :termo ESCAPE '\'""", """UPPER(T."CardName") LIKE :termo ESCAPE '\'""") +
+            colunas.flatMap { listOf("""$it = :doc""", """$it = :docMascara""") }
+        servidor.stubFor(
+            post(urlEqualTo("/api/v1/query"))
+                .withRequestBody(matchingJsonPath("$.sql", containing("""T."CardType" = '$tipo' AND (${busca.joinToString(" OR ")})""")))
+                .withRequestBody(matchingJsonPath("$.params.doc", equalTo(doc)))
+                .withRequestBody(matchingJsonPath("$.params.docMascara", equalTo(mascara)))
+                .willReturn(okJson(
+                    """{"columns":[],"rows":[${linhas.joinToString(",")}],"rowCount":${linhas.size},"truncated":false,"elapsedMs":1}""",
+                )),
+        )
+    }
+
+    @Test
+    fun `cpf completo com e sem mascara acha o cliente por igualdade`() {
+        responderSoSe('C', listOf("""D."TaxId4"""", """D."TaxId0""""), "12345678901", "123.456.789-01", """{"CODIGO":"C001","NOME":"Mauro"}""")
+        listOf("12345678901", "123.456.789-01", " \t123.456.789-01\t").forEach { q ->
+            assertEquals(listOf(ItemCadastro("C001", "Mauro")), cadastros.buscar("parceiro_negocio", q)?.itens, q)
+        }
+    }
+
+    @Test
+    fun `cnpj completo com e sem mascara acha o fornecedor por igualdade`() {
+        responderSoSe('S', listOf("""D."TaxId4"""", """D."TaxId0""""), "12345678000190", "12.345.678/0001-90", """{"CODIGO":"F001","NOME":"Carretas"}""")
+        listOf("12345678000190", "12.345.678/0001-90", "\t12.345.678/0001-90 ").forEach { q ->
+            assertEquals(listOf(ItemCadastro("F001", "Carretas")), cadastros.buscar("fornecedor", q)?.itens, q)
+        }
+    }
+
+    @Test
+    fun `tipo sem documento ignora cpf`() {
+        responder()
+        cadastros.buscar("item", "12345678901")
+        servidor.verify(postRequestedFor(urlEqualTo("/api/v1/query")).withRequestBody(not(matchingJsonPath("$.params.doc"))))
+    }
 
     @Test
     fun `asterisco vira coringa`() =
@@ -167,7 +215,7 @@ class CadastrosRelatorioTest {
         )
         val sql = assertNotNull(cadastros.sql("item"))
         assertTrue(
-            """CASE WHEN UPPER(T."ItemCode") LIKE :prefixo THEN 0 WHEN UPPER(T."ItemName") LIKE :prefixo THEN 1 ELSE 2 END AS "ORDEM"""" in sql,
+            """CASE WHEN UPPER(T."ItemCode") LIKE :prefixo ESCAPE '\' THEN 0 WHEN UPPER(T."ItemName") LIKE :prefixo ESCAPE '\' THEN 1 ELSE 2 END AS "ORDEM"""" in sql,
             sql,
         )
         assertTrue("""ORDER BY "ORDEM", "NOME", "CODIGO"""" in sql, sql)
@@ -176,7 +224,7 @@ class CadastrosRelatorioTest {
     @Test
     fun `prefixo prepara como o termo`() {
         assertEquals("%", cadastros.prefixo(null))
-        assertEquals("12.345.678/0001-90%", cadastros.prefixo("12345678000190"))
+        assertEquals("12345678000190%", cadastros.prefixo("12345678000190"))
         assertEquals("MAURO%CARRETA%", cadastros.prefixo(" mauro*carreta "))
     }
 
@@ -184,14 +232,14 @@ class CadastrosRelatorioTest {
     fun `parceiro ordena pelo CardCode e continua sem duplicata`() {
         val sql = assertNotNull(cadastros.sql("parceiro_negocio"))
         assertTrue("SELECT DISTINCT" in sql, sql)
-        assertTrue("""WHEN UPPER(T."CardCode") LIKE :prefixo THEN 0""" in sql, sql)
-        assertTrue("TaxId0\") LIKE :prefixo" !in sql, sql)
+        assertTrue("""WHEN UPPER(T."CardCode") LIKE :prefixo ESCAPE '\' THEN 0""" in sql, sql)
+        assertTrue("TaxId" !in sql, sql)
     }
 
     @Test
     fun `codigo numerico nao pesa na ordem`() {
         val sql = assertNotNull(cadastros.sql("condicao_pagamento"))
-        assertTrue("""CASE WHEN UPPER(T."PymntGroup") LIKE :prefixo THEN 1 ELSE 2 END""" in sql, sql)
+        assertTrue("""CASE WHEN UPPER(T."PymntGroup") LIKE :prefixo ESCAPE '\' THEN 1 ELSE 2 END""" in sql, sql)
     }
 
     @Test

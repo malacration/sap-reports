@@ -27,9 +27,14 @@ class CadastrosRelatorio(
     fun buscar(tipo: String, q: String?, pagina: Int = 0): PaginaBusca? {
         val consulta = REGISTRO[tipo] ?: return null
         val params = mutableMapOf<String, Any?>("termo" to termo(q), "prefixo" to prefixo(q))
+        val doc = documento(q).takeIf { consulta.documento.isNotEmpty() }
+        if (doc != null) {
+            params["doc"] = doc
+            params["docMascara"] = mascara(doc, if (doc.length == 11) "###.###.###-##" else "##.###.###/####-##")
+        }
         if (consulta.exato) params["exato"] = q?.trim().orEmpty()
         // O SQL pede LIMITE + 1; com maxRows = LIMITE o sap-odbc marca `truncated` quando há próxima página.
-        val resposta = odbc.consultar(sql(consulta, pagina), params, LIMITE)
+        val resposta = odbc.consultar(sql(consulta, pagina, doc != null), params, LIMITE)
         val itens = resposta.rows.mapNotNull { linha ->
             val codigo = if (consulta.numerico) linha["CODIGO"].paraDecimal()?.toInt() else linha["CODIGO"]?.toString()
             codigo?.let { ItemCadastro(it, linha["NOME"]?.toString()) }
@@ -37,13 +42,18 @@ class CadastrosRelatorio(
         return PaginaBusca(itens, resposta.truncated)
     }
 
-    internal fun sql(tipo: String, pagina: Int = 0): String? = REGISTRO[tipo]?.let { sql(it, pagina) }
+    internal fun sql(tipo: String, pagina: Int = 0, porDocumento: Boolean = false): String? =
+        REGISTRO[tipo]?.let { sql(it, pagina, porDocumento) }
 
     /** Única checagem de [pagina]: `buscar` monta o SQL antes de consultar, então página inválida nunca chega ao sap-odbc. */
-    private fun sql(c: Consulta, pagina: Int): String {
+    private fun sql(c: Consulta, pagina: Int, porDocumento: Boolean = false): String {
         require(pagina in PAGINAS) { "Pagina fora de $PAGINAS." }
         val p = properties.schemaCadastro?.takeIf { it.isNotBlank() }?.let { "$it." } ?: ""
-        val busca = c.busca.joinToString(" OR ") { "UPPER($it) LIKE :termo" }
+        // ESCAPE '\' (valido no HANA): só `*` é coringa; `_` e `%` digitados são literais.
+        // CPF/CNPJ só por igualdade (nunca LIKE), senão `1__.___` revela o documento dígito a dígito.
+        val buscas = c.busca.map { "UPPER($it) LIKE :termo ESCAPE '\\'" } +
+            if (porDocumento) c.documento.flatMap { listOf("$it = :doc", "$it = :docMascara") } else emptyList()
+        val busca = buscas.joinToString(" OR ")
         val onde = when {
             c.exato -> "(${c.filtro} AND ($busca)) OR ${c.codigo} = :exato"
             c.filtro != null -> "${c.filtro} AND ($busca)"
@@ -51,13 +61,13 @@ class CadastrosRelatorio(
         }
         // Relevância: código começando pelo termo, depois nome começando, depois o resto.
         // Código numérico (condição de pagamento, grupo) não entra na busca, então não pesa na ordem.
-        val porCodigo = if (c.numerico) "" else "WHEN UPPER(${c.codigo}) LIKE :prefixo THEN 0 "
+        val porCodigo = if (c.numerico) "" else "WHEN UPPER(${c.codigo}) LIKE :prefixo ESCAPE '\\' THEN 0 "
         // DISTINCT: o LEFT JOIN do CRD7 pode repetir o parceiro. "ORDEM" fica no SELECT porque
         // o HANA só ordena DISTINCT por coluna da lista; o código ignora a coluna.
         // LIMIT/OFFSET literais: vêm do Int já validado em PAGINAS, nunca de texto do usuário.
         return """
             SELECT DISTINCT ${c.codigo} AS "CODIGO", ${c.nome} AS "NOME",
-                CASE ${porCodigo}WHEN UPPER(${c.nome}) LIKE :prefixo THEN 1 ELSE 2 END AS "ORDEM"
+                CASE ${porCodigo}WHEN UPPER(${c.nome}) LIKE :prefixo ESCAPE '\' THEN 1 ELSE 2 END AS "ORDEM"
             FROM ${c.tabela(p)}
             WHERE $onde
             ORDER BY "ORDEM", "NOME", "CODIGO"
@@ -70,15 +80,14 @@ class CadastrosRelatorio(
     /** `q` vazio vira "%". */
     internal fun prefixo(q: String?): String = "${preparar(q)}%"
 
-    /** Preparo igual ao `BusinessPartnersService` do sap-service: CPF/CNPJ só dígitos ganha máscara, `*` é coringa. */
-    private fun preparar(q: String?): String {
-        val limpo = q?.trim().orEmpty()
-        return when {
-            limpo.all(Char::isDigit) && limpo.length == 11 -> mascara(limpo, "###.###.###-##")
-            limpo.all(Char::isDigit) && limpo.length == 14 -> mascara(limpo, "##.###.###/####-##")
-            else -> limpo.replace('*', '%').uppercase(Locale.ROOT)
-        }
-    }
+    /** `*` é o único coringa: `\`, `%` e `_` digitados são escapados. */
+    private fun preparar(q: String?): String =
+        q?.trim().orEmpty().uppercase(Locale.ROOT)
+            .replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_").replace('*', '%')
+
+    /** Só dígitos do termo (sem `.`, `-`, `/`, espaço) quando formam CPF (11) ou CNPJ (14); senão `null`. */
+    private fun documento(q: String?): String? =
+        q.orEmpty().trim().filterNot { it in ".-/ " }.takeIf { d -> d.all(Char::isDigit) && d.length in setOf(11, 14) }
 
     private fun mascara(digitos: String, molde: String): String {
         val resto = digitos.iterator()
@@ -93,6 +102,7 @@ class CadastrosRelatorio(
         val filtro: String? = null,
         val numerico: Boolean = false,
         val exato: Boolean = false,
+        val documento: List<String> = emptyList(),
     )
 
     companion object {
@@ -103,7 +113,8 @@ class CadastrosRelatorio(
             tabela = { p -> """${p}OCRD T LEFT JOIN ${p}CRD7 D ON D."CardCode" = T."CardCode" AND D."Address" = ''""" },
             codigo = """T."CardCode"""",
             nome = """T."CardName"""",
-            busca = listOf("""T."CardCode"""", """T."CardName"""", """D."TaxId0"""", """D."TaxId4""""),
+            busca = listOf("""T."CardCode"""", """T."CardName""""),
+            documento = listOf("""D."TaxId4"""", """D."TaxId0""""),
             filtro = """T."CardType" = '$cardType'""",
         )
 

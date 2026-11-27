@@ -13,6 +13,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.MissingServletRequestParameterException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
+import org.springframework.web.server.ResponseStatusException
 
 @RestControllerAdvice
 class ApiExceptionHandler {
@@ -33,6 +35,20 @@ class ApiExceptionHandler {
     fun proibido(ex: AcessoRelatorioNegadoException) =
         ResponseEntity.status(HttpStatus.FORBIDDEN).body(ErroDto("proibido", ex.message!!))
 
+    /** Mantém o status do [ResponseStatusException]; sem isto cairia no 500 do catch-all. */
+    @ExceptionHandler(ResponseStatusException::class)
+    fun comStatus(ex: ResponseStatusException) = ResponseEntity.status(ex.statusCode).body(
+        ErroDto(
+            when (ex.statusCode) {
+                HttpStatus.NOT_FOUND -> "nao_encontrado"
+                HttpStatus.FORBIDDEN -> "proibido"
+                HttpStatus.BAD_REQUEST -> "parametros_invalidos"
+                else -> "erro"
+            },
+            ex.reason ?: "Requisicao recusada.",
+        ),
+    )
+
     @ExceptionHandler(ResultadoTruncadoException::class)
     fun truncado(ex: ResultadoTruncadoException) =
         ResponseEntity.unprocessableContent().body(ErroDto("resultado_truncado", ex.message!!))
@@ -46,6 +62,7 @@ class ApiExceptionHandler {
         FormatoInvalidoException::class,
         MethodArgumentNotValidException::class,
         MissingServletRequestParameterException::class,
+        MethodArgumentTypeMismatchException::class,
     )
     fun requisicaoInvalida(ex: Exception) = ResponseEntity.badRequest().body(
         ErroDto("parametros_invalidos", ex.message ?: "Parametros invalidos."),

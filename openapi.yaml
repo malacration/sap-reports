@@ -79,6 +79,79 @@ paths:
                   atualizadoEm: '2026-09-10T14:22:03'
         '401': { $ref: '#/components/responses/NaoAutorizado' }
 
+  /api/v1/relatorios/cadastros/{tipo}:
+    get:
+      tags: [Consumo]
+      summary: Busca de cadastros para os filtros de parametro
+      description: |
+        Uso exclusivo dos filtros de parâmetro de relatório. Telas de venda e
+        cadastro continuam nas buscas do sap-service (esta busca nao tem o corte
+        de carteira do vendedor nem o filtro de item PAC%).
+
+        50 linhas por pagina, por relevancia: primeiro codigo comecando pelo
+        termo, depois nome comecando pelo termo, depois o resto; desempate pelo
+        nome, depois pelo codigo. `q` vazio traz as primeiras 50.
+        CPF/CNPJ (so digitos) busca parceiro/fornecedor, mas nunca volta na
+        resposta. `*` no termo e coringa. Item traz so ativos, ou o codigo exato
+        mesmo inativo.
+
+        Responde 403 se o usuario nao enxerga nenhum relatorio publicado.
+      parameters:
+        - name: tipo
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [parceiro_negocio, fornecedor, item, conta_contabil, centro_custo, condicao_pagamento, grupo_item, deposito]
+        - name: q
+          in: query
+          description: Termo de busca (codigo, nome ou documento)
+          schema: { type: string }
+        - name: pagina
+          in: query
+          description: Pagina a partir de 0 (50 linhas cada). Fora de 0..200 responde 400.
+          schema: { type: integer, minimum: 0, maximum: 200, default: 0 }
+      responses:
+        '200':
+          description: Pagina no formato lido pelo `app-search` do front
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [content, nextLink]
+                properties:
+                  content:
+                    type: array
+                    items:
+                      type: object
+                      required: [codigo]
+                      properties:
+                        codigo:
+                          description: Inteiro em `condicao_pagamento` e `grupo_item` (`-1` = A vista); texto nos demais
+                          oneOf: [{ type: string }, { type: integer }]
+                        nome: { type: string, nullable: true }
+                  nextLink:
+                    type: string
+                    description: |
+                      Proxima pagina, RELATIVA a `/api/v1/relatorios/`
+                      (`cadastros/{tipo}?q=<q url-encoded>&pagina=<n+1>`);
+                      vazio quando nao ha mais linhas e tambem na pagina 200
+                      (limite de protecao: no maximo 10.050 linhas; para ir
+                      alem, refine o termo).
+              example:
+                content:
+                  - { codigo: C001, nome: Fazenda Boa Vista }
+                nextLink: 'cadastros/parceiro_negocio?q=fazenda&pagina=1'
+        '400':
+          description: Pagina fora de 0..200 ou nao inteira
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Erro' }
+              example: { erro: parametros_invalidos, mensagem: Pagina deve estar entre 0 e 200. }
+        '401': { $ref: '#/components/responses/NaoAutorizado' }
+        '403': { $ref: '#/components/responses/Proibido' }
+        '404': { $ref: '#/components/responses/NaoEncontrado' }
+
   /api/v1/relatorios/{id}:
     get:
       tags: [Consumo]
@@ -773,13 +846,15 @@ components:
         nome: { type: string, pattern: '^[A-Za-z][A-Za-z0-9_]{0,63}$', example: dataInicio }
         tipo:
           type: string
-          enum: [texto, numero, date, datetime, booleano, lista, filial, vendedor, parceiro_negocio, item, localidade]
+          enum: [texto, numero, date, datetime, booleano, lista, filial, vendedor, parceiro_negocio, item, localidade, fornecedor, conta_contabil, centro_custo, condicao_pagamento, grupo_item, deposito]
           description: |
             Determina o componente no formulario:
             texto->input | numero->input number | date->datepicker |
             datetime->datetime picker | booleano->checkbox | lista->select (usa `opcoes`)
             filial->Bplid/BPLID inteiro | vendedor->SalesEmployeeCode inteiro (SlpCode) |
             parceiro_negocio->CardCode texto | item->ItemCode texto | localidade->Code texto.
+            fornecedor->CardCode texto | conta_contabil->AcctCode texto | centro_custo->PrcCode texto |
+            condicao_pagamento->GroupNum inteiro (-1 = A vista) | grupo_item->ItmsGrpCod inteiro | deposito->WhsCode texto.
             Somente cadastros existentes, sem SQL ou URL de busca configurável.
         multiplo:
           type: boolean

@@ -102,7 +102,9 @@ enum class TipoParametro(val yaml: String) {
     TEXTO("texto"), NUMERO("numero"), DATE("date"),
     DATETIME("datetime"), BOOLEANO("booleano"), LISTA("lista"),
     FILIAL("filial"), VENDEDOR("vendedor"), PARCEIRO_NEGOCIO("parceiro_negocio"),
-    ITEM("item"), LOCALIDADE("localidade");
+    ITEM("item"), LOCALIDADE("localidade"), FORNECEDOR("fornecedor"),
+    CONTA_CONTABIL("conta_contabil"), CENTRO_CUSTO("centro_custo"),
+    CONDICAO_PAGAMENTO("condicao_pagamento"), GRUPO_ITEM("grupo_item"), DEPOSITO("deposito");
 
     companion object {
         fun de(valor: String) = entries.firstOrNull { it.yaml == valor }

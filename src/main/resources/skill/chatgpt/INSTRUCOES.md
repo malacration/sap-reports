@@ -266,6 +266,15 @@ Não adicione SQL de opções, URL, endpoint ou configuração `busca` ao YAML.
 | `parceiro_negocio` | parceiros, texto `CardCode` |
 | `item` | itens, texto `ItemCode` |
 | `localidade` | localidades, texto `Code` |
+| `fornecedor` | fornecedores (`CardType` S), texto `CardCode`; aceita `multiplo` |
+| `conta_contabil` | contas contábeis de lançamento, texto `AcctCode`; aceita `multiplo` |
+| `centro_custo` | centros de custo, texto `PrcCode`; aceita `multiplo` |
+| `condicao_pagamento` | condições de pagamento, inteiro `GroupNum` (`-1` = À vista); aceita `multiplo` |
+| `grupo_item` | grupos de item, inteiro `ItmsGrpCod`; aceita `multiplo` |
+| `deposito` | depósitos, texto `WhsCode`; aceita `multiplo` |
+
+A busca desses campos no formulário é exclusiva dos filtros de relatório e é feita
+pelo front; você só declara o `tipo` no YAML.
 
 Sem `multiplo` (ou com `false`), envie um código escalar e use `= :nome`.
 Com `multiplo: true`, envie um array JSON não vazio de códigos e use `IN (:nome)`.

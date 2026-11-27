@@ -8,7 +8,10 @@ import java.time.OffsetDateTime
 /** Mesmas regras para valores padrão no upload e valores recebidos na execução. */
 object ValoresParametro {
     val INVALIDO = Any()
-    val tiposMultiplos = setOf("lista", "filial", "vendedor", "parceiro_negocio", "item", "localidade")
+    val tiposMultiplos = setOf(
+        "lista", "filial", "vendedor", "parceiro_negocio", "item", "localidade", "fornecedor",
+        "conta_contabil", "centro_custo", "condicao_pagamento", "grupo_item", "deposito",
+    )
 
     fun converter(param: Parametro, valor: Any?): Any? {
         if (valor == null) return null
@@ -18,10 +21,10 @@ object ValoresParametro {
             return if (valores.any { it === INVALIDO }) INVALIDO else valores.distinct()
         }
         return when (param.tipo) {
-            "filial", "vendedor" -> if (valor is Number) {
+            "filial", "vendedor", "condicao_pagamento", "grupo_item" -> if (valor is Number) {
                 valor.paraDecimal()?.takeIf { runCatching { it.intValueExact() }.isSuccess } ?: INVALIDO
             } else INVALIDO
-            "parceiro_negocio", "item", "localidade" -> (valor as? String)?.takeIf { it.isNotBlank() } ?: INVALIDO
+            "parceiro_negocio", "item", "localidade", "fornecedor", "conta_contabil", "centro_custo", "deposito" -> (valor as? String)?.takeIf { it.isNotBlank() } ?: INVALIDO
             "texto" -> valor as? String ?: INVALIDO
             "numero" -> if (valor is Number) valor.paraDecimal() ?: INVALIDO else INVALIDO
             "date" -> (valor as? String)?.takeIf { runCatching { LocalDate.parse(it) }.isSuccess } ?: INVALIDO
